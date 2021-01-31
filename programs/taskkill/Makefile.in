@@ -1,12 +1,6 @@
 MODULE    = taskkill.exe
-<<<<<<< HEAD
-IMPORTS   = user32
-=======
-APPMODE   = -mconsole -municode
 IMPORTS   = user32 psapi
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
-
-EXTRADLLFLAGS = -mconsole -municode -mno-cygwin
+APPMODE   = -mconsole -municode -mno-cygwin
 
 C_SRCS = taskkill.c
 
