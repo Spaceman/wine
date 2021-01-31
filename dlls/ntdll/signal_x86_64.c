@@ -22,8 +22,6 @@
 
 #include <stdlib.h>
 #include <stdarg.h>
-<<<<<<< HEAD
-=======
 #include <stdio.h>
 #include <sys/types.h>
 #ifdef HAVE_UNISTD_H
@@ -55,7 +53,6 @@
 # define UNW_LOCAL_ONLY
 # include <libunwind.h>
 #endif
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 #define NONAMELESSUNION
 #define NONAMELESSSTRUCT
@@ -381,10 +378,6 @@ __ASM_GLOBAL_FUNC( RtlCaptureContext,
  *              RtlWow64GetThreadContext  (NTDLL.@)
  */
 NTSTATUS WINAPI RtlWow64GetThreadContext( HANDLE handle, WOW64_CONTEXT *context )
-<<<<<<< HEAD
-{
-    return NtQueryInformationThread( handle, ThreadWow64Context, context, sizeof(*context), NULL );
-=======
 {
     BOOL self;
     NTSTATUS ret;
@@ -1586,7 +1579,6 @@ void signal_init_process(void)
  error:
     perror("sigaction");
     exit(1);
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 
