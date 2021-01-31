@@ -6300,7 +6300,6 @@ union generic_reply
 #define SERVER_PROTOCOL_VERSION 657
 
 /* ### protocol_version end ### */
-=======
     struct reg_device_event_handler_reply reg_device_event_handler_reply;
 };
 
