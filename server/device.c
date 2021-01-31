@@ -92,21 +92,15 @@ static const struct object_ops irp_call_ops =
 
 struct device_manager
 {
-<<<<<<< HEAD
     struct object          obj;            /* object header */
+    struct list            drivers;       /* list of drivers */
     struct list            devices;        /* list of devices */
     struct list            requests;       /* list of pending irps across all devices */
     struct irp_call       *current_call;   /* call currently executed on client side */
     struct wine_rb_tree    kernel_objects; /* map of objects that have client side pointer associated */
-=======
-    struct object          obj;           /* object header */
-    struct list            drivers;       /* list of drivers */
-    struct list            devices;       /* list of devices */
-    struct list            requests;      /* list of pending irps across all devices */
     struct thread          *handler_thread;
     client_ptr_t           event_handler;
     struct list            global_entry;  /* entry in global manager list*/
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 };
 
 static void device_manager_dump( struct object *obj, int verbose );
@@ -181,12 +175,9 @@ const struct object_ops device_ops =
     default_fd_map_access,            /* map_access */
     default_get_sd,                   /* get_sd */
     default_set_sd,                   /* set_sd */
-<<<<<<< HEAD
     default_get_full_name,            /* get_full_name */
     no_lookup_name,                   /* lookup_name */
-=======
     directory_lookup_name,            /* lookup_name */
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     directory_link_name,              /* link_name */
     default_unlink_name,              /* unlink_name */
     device_open_file,                 /* open_file */
