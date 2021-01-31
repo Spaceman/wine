@@ -19,14 +19,10 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
  */
 
-<<<<<<< HEAD
 #include <errno.h>
 #include <fcntl.h>
-=======
 #include "config.h"
 
-#include <errno.h>
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,9 +36,7 @@
 #include "windef.h"
 #include "winternl.h"
 #include "ntdll_misc.h"
-<<<<<<< HEAD
 #include "wine/exception.h"
-=======
 #include "wine/library.h"
 #include "wine/server.h"
 #include "wine/unicode.h"
@@ -57,7 +51,6 @@
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 WINE_DEFAULT_DEBUG_CHANNEL(process);
 
