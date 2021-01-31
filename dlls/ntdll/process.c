@@ -39,17 +39,6 @@
 #include "wine/server.h"
 #include "wine/unicode.h"
 
-#ifdef HAVE_MACH_MACH_H
-#include <mach/mach.h>
-#endif
-#include <sys/types.h>
-#ifdef HAVE_SYS_WAIT_H
-#include <sys/wait.h>
-#endif
-#ifdef HAVE_SYS_SOCKET_H
-#include <sys/socket.h>
-#endif
-
 WINE_DEFAULT_DEBUG_CHANNEL(process);
 
 
