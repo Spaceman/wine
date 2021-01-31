@@ -238,8 +238,6 @@ DWORD WINAPI SetLogonNotifyWindow(HWINSTA hwinsta,HWND hwnd)
     return 1;
 }
 
-<<<<<<< HEAD
-=======
 static const WCHAR adapter_device_string[] = {'W','i','n','e',' ','D','i','s','p','l','a','y',' ',
                                               'A','d','a','p','t','e','r',0};
 static const WCHAR adapter_device_deviceid[] = {'P','C','I','\\','V','E','N','_','0','0','0','0','&',
@@ -394,7 +392,6 @@ LONG WINAPI QueryDisplayConfig(UINT32 flags, UINT32 *numpathelements, DISPLAYCON
    return ERROR_CALL_NOT_IMPLEMENTED;
 }
 
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 /***********************************************************************
  *		RegisterSystemThread (USER32.@)
  */
