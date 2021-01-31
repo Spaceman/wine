@@ -5408,7 +5408,6 @@ struct terminate_job_reply
 
 
 
-<<<<<<< HEAD
 struct suspend_process_request
 {
     struct request_header __header;
@@ -5427,7 +5426,7 @@ struct resume_process_request
     obj_handle_t handle;
 };
 struct resume_process_reply
-=======
+
 struct reg_device_event_handler_request
 {
     struct request_header __header;
@@ -5435,7 +5434,7 @@ struct reg_device_event_handler_request
     client_ptr_t event_handler;
 };
 struct reg_device_event_handler_reply
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
+
 {
     struct reply_header __header;
 };
@@ -5720,12 +5719,9 @@ enum request
     REQ_set_job_completion_port,
     REQ_get_job_info,
     REQ_terminate_job,
-<<<<<<< HEAD
     REQ_suspend_process,
     REQ_resume_process,
-=======
     REQ_reg_device_event_handler,
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     REQ_NB_REQUESTS
 };
 
@@ -6010,12 +6006,9 @@ union generic_request
     struct set_job_completion_port_request set_job_completion_port_request;
     struct get_job_info_request get_job_info_request;
     struct terminate_job_request terminate_job_request;
-<<<<<<< HEAD
     struct suspend_process_request suspend_process_request;
     struct resume_process_request resume_process_request;
-=======
     struct reg_device_event_handler_request reg_device_event_handler_request;
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 };
 union generic_reply
 {
@@ -6298,7 +6291,6 @@ union generic_reply
     struct set_job_completion_port_reply set_job_completion_port_reply;
     struct get_job_info_reply get_job_info_reply;
     struct terminate_job_reply terminate_job_reply;
-<<<<<<< HEAD
     struct suspend_process_reply suspend_process_reply;
     struct resume_process_reply resume_process_reply;
 };
@@ -6313,6 +6305,5 @@ union generic_reply
 };
 
 #define SERVER_PROTOCOL_VERSION 569
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */
