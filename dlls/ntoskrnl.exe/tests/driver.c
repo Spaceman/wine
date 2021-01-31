@@ -1881,7 +1881,6 @@ static void WINAPI test_dpc_func(PKDPC Dpc, void *context, void *cpu_count,
     DEFERRED_REVERSE_BARRIER *barrier = reverse_barrier;
     struct test_dpc_func_context *data = context;
 
-<<<<<<< HEAD
     InterlockedIncrement(&data->call_count);
 
     InterlockedCompareExchange((volatile LONG*)&data->sync_barrier_start_value.Barrier,
@@ -1911,7 +1910,6 @@ static void WINAPI test_dpc_func(PKDPC Dpc, void *context, void *cpu_count,
             *(volatile LONG *)&barrier->TotalProcessors, 0);
 
     pKeSignalCallDpcDone(cpu_count);
-=======
     current = IoGetCurrentProcess();
     
     ok(current != NULL, "Expected current process to be non-NULL\n");
@@ -1921,7 +1919,6 @@ static void WINAPI test_dpc_func(PKDPC Dpc, void *context, void *cpu_count,
     ok(process_peb != NULL, "Expected current process PEB to be non-NULL\n");
 
     ok(process_peb->ProcessParameters->ImagePathName.Buffer != NULL, "Expected ImagePathName to be non-NULL\n");
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static void test_dpc(void)
