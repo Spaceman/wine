@@ -1485,16 +1485,12 @@ DECL_HANDLER(terminate_thread)
     {
         thread->exit_code = req->exit_code;
         if (thread != current) kill_thread( thread, 1 );
-<<<<<<< HEAD
-        else reply->self = 1;
-=======
         else
         {
             dispatch_terminate_thread_event( thread );
             reply->self = 1;
             reply->last = (thread->process->running_threads == 1);
         }
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         release_object( thread );
     }
 }
