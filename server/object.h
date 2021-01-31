@@ -244,12 +244,8 @@ extern struct object *get_root_directory(void);
 extern struct object *get_directory_obj( struct process *process, obj_handle_t handle );
 extern struct object_type *get_object_type( const struct unicode_str *name );
 extern int directory_link_name( struct object *obj, struct object_name *name, struct object *parent );
-<<<<<<< HEAD
-extern void init_directories( struct fd *intl_fd );
-=======
 extern struct object *directory_lookup_name( struct object *obj, struct unicode_str *name, unsigned int attr );
 extern void init_directories(void);
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 #define DIR_HASH_SIZE 7  /* default hash size */
 
