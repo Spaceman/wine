@@ -2162,8 +2162,6 @@ void WINAPI RtlInsertElementGenericTableAvl(PRTL_AVL_TABLE table, void *buffer, 
     FIXME("%p %p %u %p: stub\n", table, buffer, size, element);
 }
 
-<<<<<<< HEAD
-=======
 typedef struct _RTL_UNLOAD_EVENT_TRACE
 {
     PVOID BaseAddress;
@@ -2183,7 +2181,6 @@ RTL_UNLOAD_EVENT_TRACE * WINAPI RtlGetUnloadEventTrace(void)
     return NULL;
 }
 
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 /*********************************************************************
  *           RtlQueryPackageIdentity [NTDLL.@]
  */
