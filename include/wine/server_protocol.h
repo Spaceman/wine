@@ -773,7 +773,6 @@ struct rawinput_device
     user_handle_t  target;
 };
 
-<<<<<<< HEAD
 typedef struct
 {
     int x;
@@ -782,7 +781,7 @@ typedef struct
     int __pad;
     lparam_t info;
 } cursor_pos_t;
-=======
+
 enum event_type
 {
     EVENT_TYPE_PROCESS_CREATE,
@@ -791,7 +790,6 @@ enum event_type
     EVENT_TYPE_THREAD_TERMINATE,
     EVENT_TYPE_LOAD_IMAGE
 };
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 
 
