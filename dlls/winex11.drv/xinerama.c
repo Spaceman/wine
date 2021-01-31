@@ -29,10 +29,7 @@
 #endif
 #include "x11drv.h"
 #include "wine/debug.h"
-<<<<<<< HEAD
 #include "wine/heap.h"
-=======
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 #include "wine/unicode.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
@@ -106,12 +103,9 @@ static int query_screens(void)
             monitors[i].rcMonitor.right  = screens[i].x_org + screens[i].width;
             monitors[i].rcMonitor.bottom = screens[i].y_org + screens[i].height;
             monitors[i].dwFlags          = 0;
-<<<<<<< HEAD
             monitors[i].rcWork           = get_work_area( &monitors[i].rcMonitor );
-=======
             if (!IntersectRect( &monitors[i].rcWork, &rc_work, &monitors[i].rcMonitor ))
                 monitors[i].rcWork = monitors[i].rcMonitor;
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         }
 
         get_primary()->dwFlags |= MONITORINFOF_PRIMARY;
