@@ -24,35 +24,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <sys/types.h>
-#ifdef HAVE_UNISTD_H
-# include <unistd.h>
-#endif
-#ifdef HAVE_MACHINE_SYSARCH_H
-# include <machine/sysarch.h>
-#endif
-#ifdef HAVE_SYS_PARAM_H
-# include <sys/param.h>
-#endif
-#ifdef HAVE_SYSCALL_H
-# include <syscall.h>
-#else
-# ifdef HAVE_SYS_SYSCALL_H
-#  include <sys/syscall.h>
-# endif
-#endif
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
-#ifdef HAVE_SYS_SIGNAL_H
-# include <sys/signal.h>
-#endif
-#ifdef HAVE_SYS_UCONTEXT_H
-# include <sys/ucontext.h>
-#endif
-#ifdef HAVE_LIBUNWIND_H
-# define UNW_LOCAL_ONLY
-# include <libunwind.h>
-#endif
 
 #define NONAMELESSUNION
 #define NONAMELESSSTRUCT
