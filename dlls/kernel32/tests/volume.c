@@ -22,10 +22,7 @@
 #include "winbase.h"
 #include "winioctl.h"
 #include "ntddstor.h"
-<<<<<<< HEAD
 #include "winternl.h"
-=======
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 #include <stdio.h>
 #include "ddk/ntddcdvd.h"
 #include "ddk/mountmgr.h"
@@ -613,50 +610,6 @@ static void test_disk_extents(void)
     CloseHandle( handle );
 }
 
-<<<<<<< HEAD
-static void test_disk_query_property(void)
-{
-    STORAGE_PROPERTY_QUERY query = {0};
-    STORAGE_DESCRIPTOR_HEADER header = {0};
-    STORAGE_DEVICE_DESCRIPTOR descriptor = {0};
-    HANDLE handle;
-    DWORD error;
-    DWORD size;
-    BOOL ret;
-
-    handle = CreateFileA("\\\\.\\PhysicalDrive0", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-                         0, 0);
-    if (handle == INVALID_HANDLE_VALUE)
-    {
-        win_skip("can't open \\\\.\\PhysicalDrive0 %#x\n", GetLastError());
-        return;
-    }
-
-    query.PropertyId = StorageDeviceProperty;
-    query.QueryType = PropertyStandardQuery;
-
-    SetLastError(0xdeadbeef);
-    ret = DeviceIoControl(handle, IOCTL_STORAGE_QUERY_PROPERTY, &query, sizeof(query), &header, sizeof(header), &size,
-                          NULL);
-    error = GetLastError();
-    ok(ret, "expect ret %#x, got %#x\n", TRUE, ret);
-    ok(error == 0xdeadbeef, "expect err %#x, got err %#x\n", 0xdeadbeef, error);
-    ok(size == sizeof(header), "got size %d\n", size);
-    ok(header.Version == sizeof(descriptor), "got header.Version %d\n", header.Version);
-    ok(header.Size >= sizeof(descriptor), "got header.Size %d\n", header.Size);
-
-    SetLastError(0xdeadbeef);
-    ret = DeviceIoControl(handle, IOCTL_STORAGE_QUERY_PROPERTY, &query, sizeof(query), &descriptor, sizeof(descriptor),
-                          &size, NULL);
-    error = GetLastError();
-    ok(ret, "expect ret %#x, got %#x\n", TRUE, ret);
-    ok(error == 0xdeadbeef, "expect err %#x, got err %#x\n", 0xdeadbeef, error);
-    ok(size == sizeof(descriptor), "got size %d\n", size);
-    ok(descriptor.Version == sizeof(descriptor), "got descriptor.Version %d\n", descriptor.Version);
-    ok(descriptor.Size >= sizeof(descriptor), "got descriptor.Size %d\n", descriptor.Size);
-
-    CloseHandle(handle);
-=======
 static void test_disk_properties(void)
 {
     BOOL ret;
@@ -713,8 +666,6 @@ static void test_disk_properties(void)
 
     CloseHandle(handle);
 
-
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static void test_GetVolumePathNameA(void)
