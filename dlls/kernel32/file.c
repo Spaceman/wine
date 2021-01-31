@@ -575,8 +575,6 @@ error:  /* We get here if there was an error opening the file */
     WARN("(%s): return = HFILE_ERROR error= %d\n", name,ofs->nErrCode );
     return HFILE_ERROR;
 }
-<<<<<<< HEAD
-=======
 
 
 /***********************************************************************
@@ -956,4 +954,3 @@ DWORD WINAPI GetFinalPathNameByHandleA(HANDLE file, LPSTR path, DWORD charcount,
 
     return len - 1;
 }
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
