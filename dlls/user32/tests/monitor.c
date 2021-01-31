@@ -210,12 +210,27 @@ static void test_enumdisplaydevices(void)
 
     /* Doesn't accept \\.\DISPLAY */
     dd.cb = sizeof(dd);
+<<<<<<< HEAD
     ret = EnumDisplayDevicesA("\\\\.\\DISPLAY", 0, &dd, 0);
     ok(!ret, "Expect failure\n");
 
     /* Enumeration */
     for (flag_index = 0; flag_index < ARRAY_SIZE(flags); flag_index++)
         for (adapter_index = 0; EnumDisplayDevicesA(NULL, adapter_index, &dd, flags[flag_index]); adapter_index++)
+=======
+    for (num = 0;; num++)
+    {
+        HDC dc;
+        ret = pEnumDisplayDevicesA(NULL, num, &dd, 0);
+        if(!ret) break;
+
+        if(dd.StateFlags & DISPLAY_DEVICE_PRIMARY_DEVICE)
+        {
+            strcpy(primary_device_name, dd.DeviceName);
+            primary_num = num;
+        }
+        if(dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP)
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         {
             lstrcpyA(adapter_name, dd.DeviceName);
 
@@ -231,6 +246,10 @@ static void test_enumdisplaydevices(void)
                  monitor_index++)
                 test_enumdisplaydevices_monitor(adapter_index, monitor_index, adapter_name, &dd, flags[flag_index]);
         }
+<<<<<<< HEAD
+=======
+    }
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
     ok(adapter_count > 0, "Expect at least one adapter found\n");
     /* XP on Testbot doesn't report a monitor, whereas XP on real machine does */
@@ -246,6 +265,17 @@ static void test_enumdisplaydevices(void)
     ok(!strcmp(primary_monitor_device_name, primary_device_name),
        "monitor device name %s, device name %s\n", primary_monitor_device_name,
        primary_device_name);
+
+    dd.cb = sizeof(dd);
+    for (num = 0;; num++)
+    {
+        ret = pEnumDisplayDevicesA(primary_device_name, num, &dd, 0);
+        if (!ret) break;
+
+        dd.DeviceID[63] = 0;
+        ok(!strcasecmp(dd.DeviceID, "Monitor\\Default_Monitor\\{4D36E96E-E325-11CE-BFC1-08002BE10318}\\"),
+           "DeviceID \"%s\" does not start with \"Monitor\\Default_Monitor\\...\" prefix\n", dd.DeviceID);
+    }
 }
 
 struct vid_mode

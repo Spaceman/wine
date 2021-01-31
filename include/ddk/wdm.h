@@ -159,6 +159,7 @@ typedef enum _KWAIT_REASON
     MaximumWaitReason,
 } KWAIT_REASON;
 
+<<<<<<< HEAD
 typedef struct _KWAIT_BLOCK {
     LIST_ENTRY WaitListEntry;
     struct _KTHREAD *RESTRICTED_POINTER Thread;
@@ -220,10 +221,15 @@ typedef struct _ERESOURCE
     KSPIN_LOCK SpinLock;
 } ERESOURCE, *PERESOURCE;
 
+=======
+typedef struct _ALLOCATE_FUNCTION *PALLOCATE_FUNCTION;
+typedef struct _KAPC_STATE *PKAPC_STATE, *PRKAPC_STATE;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 typedef struct _IO_TIMER *PIO_TIMER;
 typedef struct _IO_TIMER_ROUTINE *PIO_TIMER_ROUTINE;
 typedef struct _ETHREAD *PETHREAD;
 typedef struct _KTHREAD *PKTHREAD, *PRKTHREAD;
+typedef struct _KPROCESS *PKPROCESS, *PRKPROCESS;
 typedef struct _EPROCESS *PEPROCESS;
 typedef struct _KPROCESS KPROCESS, *PKPROCESS, *PRKPROCESS;
 typedef struct _IO_WORKITEM *PIO_WORKITEM;
@@ -1799,7 +1805,11 @@ NTSTATUS  WINAPI PsCreateSystemThread(PHANDLE,ULONG,POBJECT_ATTRIBUTES,HANDLE,PC
 #define          PsGetCurrentThread() ((PETHREAD)KeGetCurrentThread())
 HANDLE    WINAPI PsGetCurrentProcessId(void);
 HANDLE    WINAPI PsGetCurrentThreadId(void);
+<<<<<<< HEAD
 HANDLE    WINAPI PsGetProcessInheritedFromUniqueProcessId(PEPROCESS);
+=======
+PPEB      WINAPI PsGetProcessPeb(PEPROCESS Process);
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 BOOLEAN   WINAPI PsGetVersion(ULONG*,ULONG*,ULONG*,UNICODE_STRING*);
 NTSTATUS  WINAPI PsTerminateSystemThread(NTSTATUS);
 

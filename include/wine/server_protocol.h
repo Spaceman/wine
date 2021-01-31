@@ -773,6 +773,7 @@ struct rawinput_device
     user_handle_t  target;
 };
 
+<<<<<<< HEAD
 typedef struct
 {
     int x;
@@ -781,6 +782,16 @@ typedef struct
     int __pad;
     lparam_t info;
 } cursor_pos_t;
+=======
+enum event_type
+{
+    EVENT_TYPE_PROCESS_CREATE,
+    EVENT_TYPE_PROCESS_TERMINATE,
+    EVENT_TYPE_THREAD_CREATE,
+    EVENT_TYPE_THREAD_TERMINATE,
+    EVENT_TYPE_LOAD_IMAGE
+};
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 
 
@@ -4767,6 +4778,20 @@ struct create_device_manager_reply
 
 
 
+struct add_driver_request
+{
+    struct request_header __header;
+    obj_handle_t manager;
+    /* VARARG(path,unicode_str); */
+};
+struct add_driver_reply
+{
+    struct reply_header __header;
+    client_ptr_t driver;
+};
+
+
+
 struct create_device_request
 {
     struct request_header __header;
@@ -4783,6 +4808,19 @@ struct create_device_reply
 
 
 
+struct remove_driver_request
+{
+    struct request_header __header;
+    char __pad_12[4];
+    client_ptr_t driver;
+};
+struct remove_driver_reply
+{
+    struct reply_header __header;
+};
+
+
+
 struct delete_device_request
 {
     struct request_header __header;
@@ -4792,6 +4830,35 @@ struct delete_device_request
 struct delete_device_reply
 {
     struct reply_header __header;
+};
+
+
+
+struct enum_drivers_request
+{
+    struct request_header __header;
+    unsigned int index;
+};
+struct enum_drivers_reply
+{
+    struct reply_header __header;
+    unsigned int next;
+    char __pad_12[4];
+    client_ptr_t address;
+};
+
+
+
+struct get_driver_info_request
+{
+    struct request_header __header;
+    char __pad_12[4];
+    client_ptr_t driver;
+};
+struct get_driver_info_reply
+{
+    struct reply_header __header;
+    /* VARARG(path,unicode_str); */
 };
 
 
@@ -5343,6 +5410,7 @@ struct terminate_job_reply
 
 
 
+<<<<<<< HEAD
 struct suspend_process_request
 {
     struct request_header __header;
@@ -5361,6 +5429,15 @@ struct resume_process_request
     obj_handle_t handle;
 };
 struct resume_process_reply
+=======
+struct reg_device_event_handler_request
+{
+    struct request_header __header;
+    obj_handle_t manager;
+    client_ptr_t event_handler;
+};
+struct reg_device_event_handler_reply
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 {
     struct reply_header __header;
 };
@@ -5604,8 +5681,12 @@ enum request
     REQ_get_token_impersonation_level,
     REQ_allocate_locally_unique_id,
     REQ_create_device_manager,
+    REQ_add_driver,
     REQ_create_device,
+    REQ_remove_driver,
     REQ_delete_device,
+    REQ_enum_drivers,
+    REQ_get_driver_info,
     REQ_get_next_device_request,
     REQ_get_kernel_object_ptr,
     REQ_set_kernel_object_ptr,
@@ -5641,8 +5722,12 @@ enum request
     REQ_set_job_completion_port,
     REQ_get_job_info,
     REQ_terminate_job,
+<<<<<<< HEAD
     REQ_suspend_process,
     REQ_resume_process,
+=======
+    REQ_reg_device_event_handler,
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     REQ_NB_REQUESTS
 };
 
@@ -5886,8 +5971,12 @@ union generic_request
     struct get_token_impersonation_level_request get_token_impersonation_level_request;
     struct allocate_locally_unique_id_request allocate_locally_unique_id_request;
     struct create_device_manager_request create_device_manager_request;
+    struct add_driver_request add_driver_request;
     struct create_device_request create_device_request;
+    struct remove_driver_request remove_driver_request;
     struct delete_device_request delete_device_request;
+    struct enum_drivers_request enum_drivers_request;
+    struct get_driver_info_request get_driver_info_request;
     struct get_next_device_request_request get_next_device_request_request;
     struct get_kernel_object_ptr_request get_kernel_object_ptr_request;
     struct set_kernel_object_ptr_request set_kernel_object_ptr_request;
@@ -5923,8 +6012,12 @@ union generic_request
     struct set_job_completion_port_request set_job_completion_port_request;
     struct get_job_info_request get_job_info_request;
     struct terminate_job_request terminate_job_request;
+<<<<<<< HEAD
     struct suspend_process_request suspend_process_request;
     struct resume_process_request resume_process_request;
+=======
+    struct reg_device_event_handler_request reg_device_event_handler_request;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 };
 union generic_reply
 {
@@ -6166,8 +6259,12 @@ union generic_reply
     struct get_token_impersonation_level_reply get_token_impersonation_level_reply;
     struct allocate_locally_unique_id_reply allocate_locally_unique_id_reply;
     struct create_device_manager_reply create_device_manager_reply;
+    struct add_driver_reply add_driver_reply;
     struct create_device_reply create_device_reply;
+    struct remove_driver_reply remove_driver_reply;
     struct delete_device_reply delete_device_reply;
+    struct enum_drivers_reply enum_drivers_reply;
+    struct get_driver_info_reply get_driver_info_reply;
     struct get_next_device_request_reply get_next_device_request_reply;
     struct get_kernel_object_ptr_reply get_kernel_object_ptr_reply;
     struct set_kernel_object_ptr_reply set_kernel_object_ptr_reply;
@@ -6203,6 +6300,7 @@ union generic_reply
     struct set_job_completion_port_reply set_job_completion_port_reply;
     struct get_job_info_reply get_job_info_reply;
     struct terminate_job_reply terminate_job_reply;
+<<<<<<< HEAD
     struct suspend_process_reply suspend_process_reply;
     struct resume_process_reply resume_process_reply;
 };
@@ -6212,5 +6310,11 @@ union generic_reply
 #define SERVER_PROTOCOL_VERSION 657
 
 /* ### protocol_version end ### */
+=======
+    struct reg_device_event_handler_reply reg_device_event_handler_reply;
+};
+
+#define SERVER_PROTOCOL_VERSION 569
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 #endif /* __WINE_WINE_SERVER_PROTOCOL_H */

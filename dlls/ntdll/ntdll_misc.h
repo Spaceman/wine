@@ -121,6 +121,7 @@ static inline TEB64 *NtCurrentTeb64(void) { return (TEB64 *)NtCurrentTeb()->GdiB
 
 NTSTATUS WINAPI RtlHashUnicodeString(PCUNICODE_STRING,BOOLEAN,ULONG,ULONG*);
 
+<<<<<<< HEAD
 /* convert from straight ASCII to Unicode without depending on the current codepage */
 static inline void ascii_to_unicode( WCHAR *dst, const char *src, size_t len )
 {
@@ -130,5 +131,17 @@ static inline void ascii_to_unicode( WCHAR *dst, const char *src, size_t len )
 /* FLS data */
 extern void init_global_fls_data(void) DECLSPEC_HIDDEN;
 extern TEB_FLS_DATA *fls_alloc_data(void) DECLSPEC_HIDDEN;
+=======
+
+static inline BOOL is_console_handle(HANDLE h)
+{
+    return h != INVALID_HANDLE_VALUE && ((UINT_PTR)h & 3) == 3;
+}
+
+static inline obj_handle_t console_handle_unmap(HANDLE h)
+{
+    return wine_server_obj_handle( h != INVALID_HANDLE_VALUE ? (HANDLE)((UINT_PTR)h ^ 3) : INVALID_HANDLE_VALUE );
+}
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 #endif

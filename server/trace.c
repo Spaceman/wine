@@ -4033,6 +4033,17 @@ static void dump_create_device_manager_reply( const struct create_device_manager
     fprintf( stderr, " handle=%04x", req->handle );
 }
 
+static void dump_add_driver_request( const struct add_driver_request *req )
+{
+    fprintf( stderr, " manager=%04x", req->manager );
+    dump_varargs_unicode_str( ", path=", cur_size );
+}
+
+static void dump_add_driver_reply( const struct add_driver_reply *req )
+{
+    dump_uint64( " driver=", &req->driver );
+}
+
 static void dump_create_device_request( const struct create_device_request *req )
 {
     fprintf( stderr, " rootdir=%04x", req->rootdir );
@@ -4041,10 +4052,44 @@ static void dump_create_device_request( const struct create_device_request *req 
     dump_varargs_unicode_str( ", name=", cur_size );
 }
 
+<<<<<<< HEAD
+=======
+static void dump_create_device_reply( const struct create_device_reply *req )
+{
+    fprintf( stderr, " handle=%04x", req->handle );
+}
+
+static void dump_remove_driver_request( const struct remove_driver_request *req )
+{
+    dump_uint64( " driver=", &req->driver );
+}
+
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 static void dump_delete_device_request( const struct delete_device_request *req )
 {
     fprintf( stderr, " manager=%04x", req->manager );
     dump_uint64( ", device=", &req->device );
+}
+
+static void dump_enum_drivers_request( const struct enum_drivers_request *req )
+{
+    fprintf( stderr, " index=%08x", req->index );
+}
+
+static void dump_enum_drivers_reply( const struct enum_drivers_reply *req )
+{
+    fprintf( stderr, " next=%08x", req->next );
+    dump_uint64( ", address=", &req->address );
+}
+
+static void dump_get_driver_info_request( const struct get_driver_info_request *req )
+{
+    dump_uint64( " driver=", &req->driver );
+}
+
+static void dump_get_driver_info_reply( const struct get_driver_info_reply *req )
+{
+    dump_varargs_unicode_str( " path=", cur_size );
 }
 
 static void dump_get_next_device_request_request( const struct get_next_device_request_request *req )
@@ -4385,6 +4430,7 @@ static void dump_terminate_job_request( const struct terminate_job_request *req 
     fprintf( stderr, ", status=%d", req->status );
 }
 
+<<<<<<< HEAD
 static void dump_suspend_process_request( const struct suspend_process_request *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
@@ -4393,6 +4439,12 @@ static void dump_suspend_process_request( const struct suspend_process_request *
 static void dump_resume_process_request( const struct resume_process_request *req )
 {
     fprintf( stderr, " handle=%04x", req->handle );
+=======
+static void dump_reg_device_event_handler_request( const struct reg_device_event_handler_request *req )
+{
+    fprintf( stderr, " manager=%04x", req->manager );
+    dump_uint64( ", event_handler=", &req->event_handler );
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
@@ -4632,8 +4684,12 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_get_token_impersonation_level_request,
     (dump_func)dump_allocate_locally_unique_id_request,
     (dump_func)dump_create_device_manager_request,
+    (dump_func)dump_add_driver_request,
     (dump_func)dump_create_device_request,
+    (dump_func)dump_remove_driver_request,
     (dump_func)dump_delete_device_request,
+    (dump_func)dump_enum_drivers_request,
+    (dump_func)dump_get_driver_info_request,
     (dump_func)dump_get_next_device_request_request,
     (dump_func)dump_get_kernel_object_ptr_request,
     (dump_func)dump_set_kernel_object_ptr_request,
@@ -4669,8 +4725,12 @@ static const dump_func req_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_set_job_completion_port_request,
     (dump_func)dump_get_job_info_request,
     (dump_func)dump_terminate_job_request,
+<<<<<<< HEAD
     (dump_func)dump_suspend_process_request,
     (dump_func)dump_resume_process_request,
+=======
+    (dump_func)dump_reg_device_event_handler_request,
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 };
 
 static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
@@ -4910,8 +4970,16 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     (dump_func)dump_get_token_impersonation_level_reply,
     (dump_func)dump_allocate_locally_unique_id_reply,
     (dump_func)dump_create_device_manager_reply,
+<<<<<<< HEAD
+    NULL,
+=======
+    (dump_func)dump_add_driver_reply,
+    (dump_func)dump_create_device_reply,
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     NULL,
     NULL,
+    (dump_func)dump_enum_drivers_reply,
+    (dump_func)dump_get_driver_info_reply,
     (dump_func)dump_get_next_device_request_reply,
     (dump_func)dump_get_kernel_object_ptr_reply,
     NULL,
@@ -4946,6 +5014,7 @@ static const dump_func reply_dumpers[REQ_NB_REQUESTS] = {
     NULL,
     NULL,
     (dump_func)dump_get_job_info_reply,
+    NULL,
     NULL,
     NULL,
     NULL,
@@ -5188,8 +5257,12 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "get_token_impersonation_level",
     "allocate_locally_unique_id",
     "create_device_manager",
+    "add_driver",
     "create_device",
+    "remove_driver",
     "delete_device",
+    "enum_drivers",
+    "get_driver_info",
     "get_next_device_request",
     "get_kernel_object_ptr",
     "set_kernel_object_ptr",
@@ -5225,8 +5298,12 @@ static const char * const req_names[REQ_NB_REQUESTS] = {
     "set_job_completion_port",
     "get_job_info",
     "terminate_job",
+<<<<<<< HEAD
     "suspend_process",
     "resume_process",
+=======
+    "reg_device_event_handler",
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 };
 
 static const struct

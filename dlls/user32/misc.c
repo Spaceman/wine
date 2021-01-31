@@ -238,6 +238,163 @@ DWORD WINAPI SetLogonNotifyWindow(HWINSTA hwinsta,HWND hwnd)
     return 1;
 }
 
+<<<<<<< HEAD
+=======
+static const WCHAR adapter_device_string[] = {'W','i','n','e',' ','D','i','s','p','l','a','y',' ',
+                                              'A','d','a','p','t','e','r',0};
+static const WCHAR adapter_device_deviceid[] = {'P','C','I','\\','V','E','N','_','0','0','0','0','&',
+                                                'D','E','V','_','0','0','0','0',0};
+static const WCHAR display_device_name[] = {'%','s','\\','M','o','n','i','t','o','r','0',0};
+static const WCHAR display_device_string[] = {'W','i','n','e',' ','D','i','s','p','l','a','y',0};
+static const WCHAR display_device_deviceid[] = {'M','O','N','I','T','O','R','\\',
+                                                'D','e','f','a','u','l','t','_','M','o','n','i','t','o','r','\\',
+                                                '{','4','D','3','6','E','9','6','E','-','E','3','2','5','-',
+                                                '1','1','C','E','-','B','F','C','1','-',
+                                                '0','8','0','0','2','B','E','1','0','3','1','8','}','\\',
+                                                '%','0','4','d',0};
+
+struct display_devices_enum_info
+{
+    LPCWSTR adapter;
+    DWORD target;
+    DWORD non_primary_seen;
+    LPDISPLAY_DEVICEW device;
+};
+
+/***********************************************************************
+ *		display_devices_enum
+ *
+ * Helper callback for EnumDisplayDevicesW()
+ */
+static BOOL CALLBACK display_devices_enum( HMONITOR monitor, HDC hdc, LPRECT rect, LPARAM lp )
+{
+    struct display_devices_enum_info *info = (struct display_devices_enum_info *)lp;
+    MONITORINFOEXW mon_info;
+    BOOL match;
+
+    mon_info.cbSize = sizeof(mon_info);
+    GetMonitorInfoW( monitor, (MONITORINFO*)&mon_info );
+
+    if (!(mon_info.dwFlags & MONITORINFOF_PRIMARY))
+        info->non_primary_seen++;
+
+    if (info->adapter)
+    {
+        match = !strcmpiW( info->adapter, mon_info.szDevice );
+        if (match)
+        {
+            snprintfW( info->device->DeviceName, sizeof(info->device->DeviceName) / sizeof(WCHAR),
+                       display_device_name, mon_info.szDevice );
+            lstrcpynW( info->device->DeviceString, display_device_string, sizeof(info->device->DeviceString) / sizeof(WCHAR) );
+
+            if (info->device->cb >= offsetof(DISPLAY_DEVICEW, DeviceID) + sizeof(info->device->DeviceID))
+            {
+                snprintfW( info->device->DeviceID, sizeof(info->device->DeviceID) / sizeof(WCHAR),
+                           display_device_deviceid, (mon_info.dwFlags & MONITORINFOF_PRIMARY) ? 0 : info->non_primary_seen );
+            }
+        }
+    }
+    else
+    {
+        if (mon_info.dwFlags & MONITORINFOF_PRIMARY)
+            match = (info->target == 0);
+        else
+            match = (info->target == info->non_primary_seen);
+
+        if (match)
+        {
+            lstrcpynW( info->device->DeviceName, mon_info.szDevice, sizeof(info->device->DeviceName) / sizeof(WCHAR) );
+            lstrcpynW( info->device->DeviceString, adapter_device_string, sizeof(info->device->DeviceString) / sizeof(WCHAR) );
+
+            if (info->device->cb >= offsetof(DISPLAY_DEVICEW, DeviceID) + sizeof(info->device->DeviceID))
+                lstrcpynW( info->device->DeviceID, adapter_device_deviceid, sizeof(info->device->DeviceID) / sizeof(WCHAR) );
+        }
+    }
+
+    return !match;
+}
+
+/***********************************************************************
+ *		EnumDisplayDevicesA (USER32.@)
+ */
+BOOL WINAPI EnumDisplayDevicesA( LPCSTR lpDevice, DWORD i, LPDISPLAY_DEVICEA lpDispDev,
+                                 DWORD dwFlags )
+{
+    UNICODE_STRING deviceW;
+    DISPLAY_DEVICEW ddW;
+    BOOL ret;
+
+    if(lpDevice)
+        RtlCreateUnicodeStringFromAsciiz(&deviceW, lpDevice); 
+    else
+        deviceW.Buffer = NULL;
+
+    ddW.cb = sizeof(ddW);
+    ret = EnumDisplayDevicesW(deviceW.Buffer, i, &ddW, dwFlags);
+    RtlFreeUnicodeString(&deviceW);
+
+    if(!ret) return ret;
+
+    WideCharToMultiByte(CP_ACP, 0, ddW.DeviceName, -1, lpDispDev->DeviceName, sizeof(lpDispDev->DeviceName), NULL, NULL);
+    WideCharToMultiByte(CP_ACP, 0, ddW.DeviceString, -1, lpDispDev->DeviceString, sizeof(lpDispDev->DeviceString), NULL, NULL);
+    lpDispDev->StateFlags = ddW.StateFlags;
+
+    if(lpDispDev->cb >= offsetof(DISPLAY_DEVICEA, DeviceID) + sizeof(lpDispDev->DeviceID))
+        WideCharToMultiByte(CP_ACP, 0, ddW.DeviceID, -1, lpDispDev->DeviceID, sizeof(lpDispDev->DeviceID), NULL, NULL);
+    if(lpDispDev->cb >= offsetof(DISPLAY_DEVICEA, DeviceKey) + sizeof(lpDispDev->DeviceKey))
+        WideCharToMultiByte(CP_ACP, 0, ddW.DeviceKey, -1, lpDispDev->DeviceKey, sizeof(lpDispDev->DeviceKey), NULL, NULL);
+
+    return TRUE;
+}
+
+/***********************************************************************
+ *		EnumDisplayDevicesW (USER32.@)
+ */
+BOOL WINAPI EnumDisplayDevicesW( LPCWSTR lpDevice, DWORD i, LPDISPLAY_DEVICEW lpDisplayDevice,
+                                 DWORD dwFlags )
+{
+    struct display_devices_enum_info info;
+
+    TRACE("(%s,%d,%p,0x%08x)\n",debugstr_w(lpDevice),i,lpDisplayDevice,dwFlags);
+
+    if (lpDevice && i)
+        return FALSE;
+
+    lpDisplayDevice->StateFlags =
+        DISPLAY_DEVICE_ATTACHED_TO_DESKTOP |
+        DISPLAY_DEVICE_VGA_COMPATIBLE;
+
+    if (!lpDevice && i == 0)
+        lpDisplayDevice->StateFlags |= DISPLAY_DEVICE_PRIMARY_DEVICE;
+
+    info.adapter = lpDevice;
+    info.target = i;
+    info.non_primary_seen = 0;
+    info.device = lpDisplayDevice;
+    if (EnumDisplayMonitors( 0, NULL, display_devices_enum, (LPARAM)&info ))
+        return FALSE;
+
+    if(lpDisplayDevice->cb >= offsetof(DISPLAY_DEVICEW, DeviceKey) + sizeof(lpDisplayDevice->DeviceKey))
+        lpDisplayDevice->DeviceKey[0] = 0;
+
+    TRACE("DeviceName %s DeviceString %s DeviceID %s DeviceKey %s\n", debugstr_w(lpDisplayDevice->DeviceName),
+          debugstr_w(lpDisplayDevice->DeviceString), debugstr_w(lpDisplayDevice->DeviceID), debugstr_w(lpDisplayDevice->DeviceKey));
+
+    return TRUE;
+}
+
+/***********************************************************************
+ *              QueryDisplayConfig (USER32.@)
+ */
+LONG WINAPI QueryDisplayConfig(UINT32 flags, UINT32 *numpathelements, DISPLAYCONFIG_PATH_INFO *pathinfo,
+                               UINT32 *numinfoelements, DISPLAYCONFIG_MODE_INFO *modeinfo,
+                               DISPLAYCONFIG_TOPOLOGY_ID *topologyid)
+{
+   FIXME("(%08x %p %p %p %p %p)\n", flags, numpathelements, pathinfo, numinfoelements, modeinfo, topologyid);
+   return ERROR_CALL_NOT_IMPLEMENTED;
+}
+
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 /***********************************************************************
  *		RegisterSystemThread (USER32.@)
  */

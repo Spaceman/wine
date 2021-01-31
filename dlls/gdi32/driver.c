@@ -140,6 +140,7 @@ static const struct gdi_dc_funcs *get_display_driver(void)
 /**********************************************************************
  *	     is_display_device
  */
+<<<<<<< HEAD
 BOOL is_display_device( LPCWSTR name )
 {
     const WCHAR *p = name;
@@ -152,17 +153,35 @@ BOOL is_display_device( LPCWSTR name )
     p += lstrlenW(L"\\\\.\\DISPLAY");
 
     if (!iswdigit( *p++ ))
+=======
+static BOOL is_display_device( LPCWSTR name )
+{
+    static const WCHAR display_deviceW[] = {'\\','\\','.','\\','D','I','S','P','L','A','Y'};
+    const WCHAR *p = name;
+
+    if (strncmpiW( name, display_deviceW, sizeof(display_deviceW) / sizeof(WCHAR) ))
+        return FALSE;
+
+    p += sizeof(display_deviceW) / sizeof(WCHAR);
+
+    if (!isdigitW( *p++ ))
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         return FALSE;
 
     for (; *p; p++)
     {
+<<<<<<< HEAD
         if (!iswdigit( *p ))
+=======
+        if (!isdigitW( *p ))
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
             return FALSE;
     }
 
     return TRUE;
 }
 
+<<<<<<< HEAD
 static HANDLE get_display_device_init_mutex( void )
 {
     HANDLE mutex = CreateMutexW( NULL, FALSE, L"display_device_init" );
@@ -176,6 +195,8 @@ static void release_display_device_init_mutex( HANDLE mutex )
     ReleaseMutex( mutex );
     CloseHandle( mutex );
 }
+=======
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 /**********************************************************************
  *	     DRIVER_load_driver
@@ -184,9 +205,16 @@ const struct gdi_dc_funcs *DRIVER_load_driver( LPCWSTR name )
 {
     HMODULE module;
     struct graphics_driver *driver, *new_driver;
+<<<<<<< HEAD
 
     /* display driver is a special case */
     if (!wcsicmp( name, L"display" ) || is_display_device( name )) return get_display_driver();
+=======
+    static const WCHAR displayW[] = { 'd','i','s','p','l','a','y',0 };
+
+    /* display driver is a special case */
+    if (!strcmpiW( name, displayW ) || is_display_device( name )) return get_display_driver();
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
     if ((module = GetModuleHandleW( name )))
     {
@@ -1013,10 +1041,21 @@ const struct gdi_dc_funcs null_driver =
  */
 BOOL DRIVER_GetDriverName( LPCWSTR device, LPWSTR driver, DWORD size )
 {
+<<<<<<< HEAD
     WCHAR *p;
 
     /* display is a special case */
     if (!wcsicmp( device, L"display" ) || is_display_device( device ))
+=======
+    static const WCHAR displayW[] = { 'd','i','s','p','l','a','y',0 };
+    static const WCHAR devicesW[] = { 'd','e','v','i','c','e','s',0 };
+    static const WCHAR empty_strW[] = { 0 };
+    WCHAR *p;
+
+    /* display is a special case */
+    if (!strcmpiW( device, displayW ) ||
+        is_display_device( device ))
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     {
         lstrcpynW( driver, L"display", size );
         return TRUE;

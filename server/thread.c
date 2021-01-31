@@ -45,6 +45,7 @@
 #include "winternl.h"
 
 #include "file.h"
+#include "device.h"
 #include "handle.h"
 #include "process.h"
 #include "thread.h"
@@ -1252,6 +1253,9 @@ int thread_get_inflight_fd( struct thread *thread, int client )
 void kill_thread( struct thread *thread, int violent_death )
 {
     if (thread->state == TERMINATED) return;  /* already killed */
+
+    dispatch_terminate_thread_event( thread );
+
     thread->state = TERMINATED;
     thread->exit_time = current_time;
     if (current == thread) current = NULL;
@@ -1392,6 +1396,7 @@ DECL_HANDLER(init_thread)
 {
     struct process *process = current->process;
     int wait_fd, reply_fd;
+    int first;
 
     if ((reply_fd = thread_get_inflight_fd( current, req->reply_fd )) == -1)
     {
@@ -1429,6 +1434,7 @@ DECL_HANDLER(init_thread)
 
     if (!process->peb)  /* first thread, initialize the process too */
     {
+        first = 1;
         if (!is_cpu_supported( req->cpu )) return;
         process->unix_pid = current->unix_pid;
         process->peb      = req->entry;
@@ -1441,6 +1447,7 @@ DECL_HANDLER(init_thread)
     }
     else
     {
+        first = 0;
         if (req->cpu != process->cpu)
         {
             set_error( STATUS_INVALID_PARAMETER );
@@ -1453,6 +1460,8 @@ DECL_HANDLER(init_thread)
         set_thread_affinity( current, current->affinity );
     }
     debug_level = max( debug_level, req->debug_level );
+
+    if(!first) dispatch_create_thread_event( current );
 
     reply->pid     = get_process_id( process );
     reply->tid     = get_thread_id( current );
@@ -1476,7 +1485,16 @@ DECL_HANDLER(terminate_thread)
     {
         thread->exit_code = req->exit_code;
         if (thread != current) kill_thread( thread, 1 );
+<<<<<<< HEAD
         else reply->self = 1;
+=======
+        else
+        {
+            dispatch_terminate_thread_event( thread );
+            reply->self = 1;
+            reply->last = (thread->process->running_threads == 1);
+        }
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         release_object( thread );
     }
 }

@@ -44,10 +44,15 @@
 #include "wine/server.h"
 #include "wine/debug.h"
 #include "wine/heap.h"
+#include "wine/list.h"
 #include "wine/rbtree.h"
 #include "wine/svcctl.h"
 
+<<<<<<< HEAD
 #include "ntoskrnl_private.h"
+=======
+#include "ntoskrnl.h"
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 WINE_DEFAULT_DEBUG_CHANNEL(ntoskrnl);
 WINE_DECLARE_DEBUG_CHANNEL(relay);
@@ -70,6 +75,26 @@ typedef struct _KSERVICE_TABLE_DESCRIPTOR
 
 KSERVICE_TABLE_DESCRIPTOR KeServiceDescriptorTable[4] = { { 0 } };
 
+<<<<<<< HEAD
+=======
+POBJECT_TYPE PsThreadType;
+POBJECT_TYPE PsProcessType;
+
+static const WCHAR ThreadTypeW[] =  {'T','h','r','e','a','d',0};
+static const WCHAR ProcessTypeW[] = {'P','r','o','c','e','s','s',0};
+
+typedef void (WINAPI *PCREATE_PROCESS_NOTIFY_ROUTINE)(HANDLE,HANDLE,BOOLEAN);
+typedef void (WINAPI *PCREATE_PROCESS_NOTIFY_ROUTINE_EX)(PEPROCESS,HANDLE,PPS_CREATE_NOTIFY_INFO);
+typedef void (WINAPI *PCREATE_THREAD_NOTIFY_ROUTINE)(HANDLE,HANDLE,BOOLEAN);
+
+static const WCHAR servicesW[] = {'\\','R','e','g','i','s','t','r','y',
+                                  '\\','M','a','c','h','i','n','e',
+                                  '\\','S','y','s','t','e','m',
+                                  '\\','C','u','r','r','e','n','t','C','o','n','t','r','o','l','S','e','t',
+                                  '\\','S','e','r','v','i','c','e','s',
+                                  '\\',0};
+
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 #define MAX_SERVICE_NAME 260
 
 static TP_POOL *dpc_call_tp;
@@ -95,7 +120,12 @@ struct wine_driver
     DRIVER_OBJECT driver_obj;
     DRIVER_EXTENSION driver_extension;
     SERVICE_STATUS_HANDLE service_handle;
+<<<<<<< HEAD
     struct wine_rb_entry entry;
+=======
+    PVOID server_driver;
+    PWSTR module_path;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 };
 
 static int wine_drivers_rb_compare( const void *key, const struct wine_rb_entry *entry )
@@ -108,7 +138,59 @@ static int wine_drivers_rb_compare( const void *key, const struct wine_rb_entry 
 
 static struct wine_rb_tree wine_drivers = { wine_drivers_rb_compare };
 
+<<<<<<< HEAD
 DECLARE_CRITICAL_SECTION(drivers_cs);
+=======
+/* list of process objects and their associated PIDs */
+struct process_object_container
+{
+    struct    list entry;
+    PEPROCESS object;
+};
+
+static struct list process_objects = LIST_INIT( process_objects );
+
+static CRITICAL_SECTION drivers_cs;
+static CRITICAL_SECTION_DEBUG driver_critsect_debug =
+{
+    0, 0, &drivers_cs,
+    { &driver_critsect_debug.ProcessLocksList, &driver_critsect_debug.ProcessLocksList },
+      0, 0, { (DWORD_PTR)(__FILE__ ": drivers_cs") }
+};
+static CRITICAL_SECTION drivers_cs = { &driver_critsect_debug, -1, 0, 0, 0, 0 };
+
+static CRITICAL_SECTION sync_cs;
+static CRITICAL_SECTION_DEBUG sync_critsect_debug =
+{
+    0, 0, &sync_cs,
+    { &sync_critsect_debug.ProcessLocksList, &sync_critsect_debug.ProcessLocksList },
+      0, 0, { (DWORD_PTR)(__FILE__ ": sync_cs") }
+};
+static CRITICAL_SECTION sync_cs = { &sync_critsect_debug, -1, 0, 0, 0, 0 };
+
+#ifdef __i386__
+#define DEFINE_FASTCALL1_ENTRYPOINT( name ) \
+    __ASM_STDCALL_FUNC( name, 4, \
+                       "popl %eax\n\t" \
+                       "pushl %ecx\n\t" \
+                       "pushl %eax\n\t" \
+                       "jmp " __ASM_NAME("__regs_") #name __ASM_STDCALL(4))
+#define DEFINE_FASTCALL2_ENTRYPOINT( name ) \
+    __ASM_STDCALL_FUNC( name, 8, \
+                       "popl %eax\n\t" \
+                       "pushl %edx\n\t" \
+                       "pushl %ecx\n\t" \
+                       "pushl %eax\n\t" \
+                       "jmp " __ASM_NAME("__regs_") #name __ASM_STDCALL(8))
+#define DEFINE_FASTCALL3_ENTRYPOINT( name ) \
+    __ASM_STDCALL_FUNC( name, 12, \
+                       "popl %eax\n\t" \
+                       "pushl %edx\n\t" \
+                       "pushl %ecx\n\t" \
+                       "pushl %eax\n\t" \
+                       "jmp " __ASM_NAME("__regs_") #name __ASM_STDCALL(12))
+#endif
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 static HANDLE get_device_manager(void)
 {
@@ -829,6 +911,13 @@ static void unload_driver( struct wine_rb_entry *entry, void *context )
 
     set_service_status( service_handle, SERVICE_STOP_PENDING, 0 );
 
+    SERVER_START_REQ(remove_driver)
+    {
+        req->driver = wine_server_client_ptr(driver->server_driver);
+        wine_server_call( req );
+    }
+    SERVER_END_REQ;
+
     TRACE_(relay)( "\1Call driver unload %p (obj=%p)\n", driver->driver_obj.DriverUnload, &driver->driver_obj );
 
     driver->driver_obj.DriverUnload( &driver->driver_obj );
@@ -842,7 +931,276 @@ static void unload_driver( struct wine_rb_entry *entry, void *context )
     CloseServiceHandle( (void *)service_handle );
 }
 
+<<<<<<< HEAD
 PEPROCESS PsInitialSystemProcess = NULL;
+=======
+
+
+static PEPROCESS get_or_create_process_object(DWORD pid)
+{
+    PEPROCESS new_object;
+    struct process_object_container *container;
+    PROCESS_BASIC_INFORMATION pbi;
+    NTSTATUS status;
+    
+    /* see if we already have the object */
+    LIST_FOR_EACH_ENTRY( container, &process_objects, struct process_object_container, entry )
+    {
+        if(container->object->Pid == pid)
+            return container->object;
+    }
+    
+    /* not found, create object */
+    new_object = RtlAllocateHeap(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x04D0);
+    new_object->header.Type = ProcessObject;
+    new_object->header.Size = 0x18;
+    new_object->header.SignalState = 1;
+    
+    new_object->Pid = pid;
+    
+    new_object->PebAddress = 0; /* Fallback if we fail to query */
+
+    /* Get a handle with necessary permissions */
+    new_object->ProcessHandle = OpenProcess(PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_QUERY_INFORMATION, FALSE, pid);
+
+    /* store in PEB so signal handler can access */
+    NtCurrentTeb()->Peb->Reserved[0] = (ULONG) (ULONGLONG) new_object->ProcessHandle;
+
+
+    status = NtQueryInformationProcess(new_object->ProcessHandle, ProcessBasicInformation, &pbi, sizeof(pbi), NULL);
+
+    if(status) 
+        FIXME("Unable to get PEB address from process %u\n", pid);
+    else
+        new_object->PebAddress = pbi.PebBaseAddress;
+    
+    /* create container */
+    container = RtlAllocateHeap(GetProcessHeap(), 0, sizeof(*container));
+    container->object = new_object;
+    
+    list_add_head( &process_objects, &container->entry );
+    
+    return new_object;
+}
+
+struct routine_entry
+{
+    struct list entry;
+    void        *routine;
+};
+
+static struct list process_create_ex_routines = LIST_INIT( process_create_ex_routines );
+static struct list thread_create_routines = LIST_INIT( thread_create_routines );
+static struct list load_image_routines = LIST_INIT( load_image_routines );
+
+static void CALLBACK handle_event( ULONG_PTR arg1, ULONG_PTR arg2, ULONG_PTR arg3 )
+{
+    enum event_type type = (enum event_type) arg1;
+
+    switch( type )
+    {
+        case EVENT_TYPE_PROCESS_CREATE:
+            {
+                PEPROCESS process_object;
+                HANDLE pid;
+                PS_CREATE_NOTIFY_INFO create_info;
+                  CLIENT_ID creating_thread_info;
+                    HANDLE creating_thread;
+                  PEB process_peb;
+                  RTL_USER_PROCESS_PARAMETERS process_params;
+                  WCHAR dos_path[MAX_PATH];
+                  UNICODE_STRING nt_path;
+                  PWCHAR command_line;
+                  UNICODE_STRING command_line_us;
+                  
+
+                PROCESS_BASIC_INFORMATION pbi;
+                NTSTATUS stat;
+                SIZE_T out_size;
+
+                struct routine_entry *cur_routine;
+
+                TRACE("Create-Process Event\n");
+		        /*if(list_empty( &process_create_ex_routines )) return;*/
+
+                pid = (HANDLE) arg2;
+                process_object = get_or_create_process_object( (DWORD) (ULONGLONG) pid );
+
+                create_info.Size = sizeof(PS_CREATE_NOTIFY_INFO);
+                create_info.DUMMYUNIONNAME.Flags = 0; /* Unknown */
+                create_info.DUMMYUNIONNAME.DUMMYSTRUCTNAME.FileOpenNameAvailable = TRUE;
+                create_info.DUMMYUNIONNAME.DUMMYSTRUCTNAME.IsSubsystemProcess = FALSE;
+
+                /* get PBI */
+                if( (stat = NtQueryInformationProcess(process_object->ProcessHandle, ProcessBasicInformation, &pbi, sizeof(pbi), NULL)) )
+                {
+                    FIXME("Unable to get PBI for Create-Process Event: %p\n", (PVOID) (ULONGLONG) stat);
+                    return;
+                }
+
+                create_info.ParentProcessId = (HANDLE) pbi.InheritedFromUniqueProcessId;
+                
+                creating_thread_info.UniqueThread = (HANDLE) arg3;
+                creating_thread = OpenThread(THREAD_QUERY_INFORMATION, FALSE, (DWORD) (ULONGLONG) arg3);
+                creating_thread_info.UniqueProcess = (HANDLE) (ULONGLONG) GetProcessIdOfThread(creating_thread);
+                CloseHandle(creating_thread);
+
+                create_info.CreatingThreadId = creating_thread_info;
+
+                create_info.FileObject = (PFILE_OBJECT) 0xdeadbeefdeadbeef; /* TODO: fix */
+
+                /* navigate PEB for CommandLine */
+                if( (!ReadProcessMemory(process_object->ProcessHandle, process_object->PebAddress, &process_peb, sizeof(PEB), &out_size)) || out_size != sizeof(PEB) )
+                {
+                    FIXME("Unable to read PEB of process in process-creation notification\n");
+                    return;
+                }
+
+                if( (!ReadProcessMemory(process_object->ProcessHandle, process_peb.ProcessParameters, &process_params, sizeof(RTL_USER_PROCESS_PARAMETERS), &out_size)) || out_size != sizeof(RTL_USER_PROCESS_PARAMETERS))
+                {
+                    FIXME("Unable to read process paramaters on process in creation notification\n");
+                    return;
+                }
+
+                if( (!ReadProcessMemory(process_object->ProcessHandle, process_params.ImagePathName.Buffer, dos_path, process_params.ImagePathName.Length, &out_size)) || out_size != process_params.ImagePathName.Length)
+                {
+                    FIXME("Unable to read Image Path Name in creation notification\n");
+                    return;
+                }
+
+                command_line = HeapAlloc( GetProcessHeap(), 0, process_params.CommandLine.Length);
+
+                if( (!ReadProcessMemory(process_object->ProcessHandle, process_params.CommandLine.Buffer, command_line, process_params.CommandLine.Length, &out_size)) || out_size != process_params.CommandLine.Length)
+                {
+                    FIXME("Unable to read Command-Line in creation notification\n");
+                    HeapFree( GetProcessHeap(), 0, command_line );
+                    return;
+                }
+
+                if( (stat = RtlDosPathNameToNtPathName_U_WithStatus(dos_path, &nt_path, NULL, NULL)) )
+                {
+                    FIXME("Unable to convert process path to NT format for notification: %p\n", (PVOID) (ULONGLONG) stat);
+                    HeapFree( GetProcessHeap(), 0, command_line);
+                    return;
+                }
+
+                create_info.ImageFileName = &nt_path;
+
+                RtlCreateUnicodeString(&command_line_us, command_line);
+                create_info.CommandLine = &command_line_us;
+
+                create_info.CreationStatus = STATUS_SUCCESS;
+
+                /* dispatch here */
+                TRACE("parent=%u create_proc=%u create_thread=%u path=%s cmd=%s\n", (ULONG)(ULONGLONG)create_info.ParentProcessId, (ULONG)(ULONGLONG)create_info.CreatingThreadId.UniqueProcess, (ULONG)(ULONGLONG)create_info.CreatingThreadId.UniqueThread, debugstr_us(create_info.ImageFileName), debugstr_us(create_info.CommandLine) );
+                LIST_FOR_EACH_ENTRY( cur_routine, &process_create_ex_routines, struct routine_entry, entry )
+                {
+                    PCREATE_PROCESS_NOTIFY_ROUTINE_EX routine = (PCREATE_PROCESS_NOTIFY_ROUTINE_EX) cur_routine->routine;
+                    
+                    routine(process_object, pid, &create_info);
+                }
+                /* end dispatch here */
+
+                if(create_info.CreationStatus)
+                {
+                    FIXME("Process Creation calback requested that the creation fail with code: %p\n", (PVOID) (ULONGLONG) create_info.CreationStatus );
+                }
+
+                HeapFree( GetProcessHeap(), 0, command_line );
+                RtlFreeUnicodeString( (PUNICODE_STRING)create_info.ImageFileName );
+                RtlFreeUnicodeString( (PUNICODE_STRING)create_info.CommandLine );
+
+            }
+            break;
+        case EVENT_TYPE_PROCESS_TERMINATE:
+            {
+                DWORD pid;
+                PEPROCESS process_object;
+
+                struct routine_entry *cur_routine;
+
+                pid = (DWORD)(ULONGLONG)arg2;
+		        process_object = get_or_create_process_object( pid );
+
+                TRACE("Terminate-Process Event pid=%u\n", pid);
+
+                LIST_FOR_EACH_ENTRY( cur_routine, &process_create_ex_routines, struct routine_entry, entry )
+                {
+                    PCREATE_PROCESS_NOTIFY_ROUTINE_EX routine = (PCREATE_PROCESS_NOTIFY_ROUTINE_EX) cur_routine->routine;
+                    
+                    routine(process_object, (HANDLE) arg2, NULL);
+                }
+
+            }
+            break;
+        case EVENT_TYPE_THREAD_CREATE:
+            {
+                struct routine_entry *cur_routine;
+
+                TRACE("Create-Thread Event tid=%u\n", (DWORD)(ULONGLONG)arg2);
+		        
+                LIST_FOR_EACH_ENTRY( cur_routine, &thread_create_routines, struct routine_entry, entry )
+                {
+                    PCREATE_THREAD_NOTIFY_ROUTINE routine = (PCREATE_THREAD_NOTIFY_ROUTINE) cur_routine->routine;
+
+                    routine((HANDLE)arg3, (HANDLE)arg2, TRUE);
+                }
+            }
+            break;
+        case EVENT_TYPE_THREAD_TERMINATE:
+            {
+                struct routine_entry *cur_routine;
+
+                TRACE("Terminate-Thread Event tid=%u\n", (DWORD)(ULONGLONG)arg2);
+		        
+                LIST_FOR_EACH_ENTRY( cur_routine, &thread_create_routines, struct routine_entry, entry )
+                {
+                    PCREATE_THREAD_NOTIFY_ROUTINE routine = (PCREATE_THREAD_NOTIFY_ROUTINE) cur_routine->routine;
+
+                    routine((HANDLE)arg3, (HANDLE)arg2, FALSE);
+                }
+            }
+            break;
+        case EVENT_TYPE_LOAD_IMAGE:
+            {
+                TRACE("Load-Image Event\n");
+		        if(list_empty( &load_image_routines )) return;
+            }
+            break;
+        default:
+            FIXME("Unhandled event type %p\n", (PVOID) arg1);
+    }
+}
+
+static void CDECL wine_device_event_handler_thread( HANDLE stop_event )
+{
+    NTSTATUS stat;
+
+    SERVER_START_REQ( reg_device_event_handler )
+    {
+        req->manager = wine_server_obj_handle( get_device_manager() );
+        req->event_handler = wine_server_client_ptr( handle_event );
+        stat = wine_server_call( req );
+    }
+    SERVER_END_REQ;
+
+    if(stat)
+    {
+        FIXME("Failed to register event handler: %p\n", (PVOID) (ULONGLONG) stat);
+        return;
+    }
+
+    for(;;)
+    {
+        stat = WaitForSingleObjectEx(stop_event, INFINITE, TRUE);
+        if(!stat)
+            return;
+        if(stat == WAIT_IO_COMPLETION)
+            continue;
+        return;
+    }
+}
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 /***********************************************************************
  *           wine_ntoskrnl_main_loop   (Not a Windows API)
@@ -854,6 +1212,7 @@ NTSTATUS CDECL wine_ntoskrnl_main_loop( HANDLE stop_event )
     NTSTATUS status = STATUS_SUCCESS;
     HANDLE handles[2];
 
+<<<<<<< HEAD
     context.handle  = NULL;
     context.irp     = NULL;
     context.in_size = 4096;
@@ -864,6 +1223,23 @@ NTSTATUS CDECL wine_ntoskrnl_main_loop( HANDLE stop_event )
     request_thread = GetCurrentThreadId();
 
     pnp_manager_start();
+=======
+    UNICODE_STRING ThreadTypeUS;
+    UNICODE_STRING ProcessTypeUS;
+
+    RtlCreateUnicodeString(&ThreadTypeUS, ThreadTypeW);
+    RtlCreateUnicodeString(&ProcessTypeUS, ProcessTypeW);
+
+    PsThreadType  = RtlAllocateHeap( GetProcessHeap(), 0, sizeof(struct _OBJECT_TYPE) );
+    PsProcessType = RtlAllocateHeap( GetProcessHeap(), 0, sizeof(struct _OBJECT_TYPE) );
+    
+    PsThreadType->Name = ThreadTypeUS;
+    PsProcessType->Name = ProcessTypeUS;
+
+    request_thread = GetCurrentThreadId();
+
+    RtlCreateUserThread(GetCurrentProcess(), 0, FALSE, 0, 0, 0, wine_device_event_handler_thread, stop_event, NULL, NULL);
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
     handles[0] = stop_event;
     handles[1] = manager;
@@ -2057,7 +2433,11 @@ PVOID WINAPI ExAllocatePoolWithQuota( POOL_TYPE type, SIZE_T size )
 PVOID WINAPI ExAllocatePoolWithTag( POOL_TYPE type, SIZE_T size, ULONG tag )
 {
     /* FIXME: handle page alignment constraints */
+<<<<<<< HEAD
     void *ret = HeapAlloc( ntoskrnl_heap, 0, size );
+=======
+    void *ret = VirtualAlloc( NULL, size, (MEM_RESERVE | MEM_COMMIT), PAGE_EXECUTE_READWRITE );
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     TRACE( "%lu pool %u -> %p\n", size, type, ret );
     return ret;
 }
@@ -2112,7 +2492,11 @@ void WINAPI ExFreePool( void *ptr )
 void WINAPI ExFreePoolWithTag( void *ptr, ULONG tag )
 {
     TRACE( "%p\n", ptr );
+<<<<<<< HEAD
     HeapFree( ntoskrnl_heap, 0, ptr );
+=======
+    VirtualFree( ptr, 0, MEM_RELEASE );
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static void initialize_lookaside_list( GENERAL_LOOKASIDE *lookaside, PALLOCATE_FUNCTION allocate, PFREE_FUNCTION free,
@@ -2255,14 +2639,49 @@ POBJECT_TYPE PsProcessType = &process_type;
  */
 PEPROCESS WINAPI IoGetCurrentProcess(void)
 {
+<<<<<<< HEAD
     return KeGetCurrentThread()->process;
 }
 
 /***********************************************************************
  *           PsLookupProcessByProcessId  (NTOSKRNL.EXE.@)
+=======
+    if(GetCurrentThreadId() == request_thread)
+    {
+        TRACE("returning process of interupt dispatcher\n");
+        return get_or_create_process_object(client_pid);
+    }else{
+        FIXME("() stub\n");
+        return NULL;
+    }
+}
+
+static void init_kthread(PTEB teb)
+{
+    struct _KTHREAD *kthread = RtlAllocateHeap(GetProcessHeap(), HEAP_ZERO_MEMORY, 0x0360);
+
+    kthread->header.Type = ThreadObject;
+    kthread->header.Size = 0x18;
+    kthread->header.SignalState = 1;
+
+    for(unsigned int i = 0; i < 4; i++)
+        kthread->WaitBlock[i].Thread = kthread;
+
+    InitializeListHead(&kthread->MutantListHead);
+
+    kthread->wakeup_event = CreateEventW(NULL, FALSE, FALSE, NULL);
+
+    teb->Spare4 = kthread;
+}
+
+/***********************************************************************
+ *           KeGetCurrentThread / PsGetCurrentThread   (NTOSKRNL.EXE.@)
+ *     -zf's idea
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
  */
 NTSTATUS WINAPI PsLookupProcessByProcessId( HANDLE processid, PEPROCESS *process )
 {
+<<<<<<< HEAD
     NTSTATUS status;
     HANDLE handle;
 
@@ -2279,21 +2698,64 @@ NTSTATUS WINAPI PsLookupProcessByProcessId( HANDLE processid, PEPROCESS *process
 
 /*********************************************************************
  *           PsGetProcessId    (NTOSKRNL.@)
+=======
+    TRACE("() returning KTHREAD structure from TEB\n");
+
+    if (!NtCurrentTeb()->Spare4)
+        init_kthread(NtCurrentTeb());
+
+    return NtCurrentTeb()->Spare4;
+}
+
+/***********************************************************************
+ *           KeInitializeEvent   (NTOSKRNL.EXE.@)
+ *    - from ReactOS
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
  */
 HANDLE WINAPI PsGetProcessId(PEPROCESS process)
 {
+<<<<<<< HEAD
     TRACE( "%p -> %lx\n", process, process->info.UniqueProcessId );
     return (HANDLE)process->info.UniqueProcessId;
 }
 
 /*********************************************************************
  *           PsGetProcessInheritedFromUniqueProcessId  (NTOSKRNL.@)
+=======
+    TRACE( "event: %p, type: %d, state: %d\n", Event, Type, State );
+    
+    /* Initialize the Dispatcher Header */
+    Event->Header.Type = Type;
+    
+    Event->Header.Size = sizeof(KEVENT) / sizeof(ULONG);
+    Event->Header.SignalState = State;
+    InitializeListHead(&(Event->Header.WaitListHead));
+}
+
+
+ /***********************************************************************
+ *           KeInitializeMutex   (NTOSKRNL.EXE.@)
+ *   -from ReactOS
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
  */
 HANDLE WINAPI PsGetProcessInheritedFromUniqueProcessId( PEPROCESS process )
 {
+<<<<<<< HEAD
     HANDLE id = (HANDLE)process->info.InheritedFromUniqueProcessId;
     TRACE( "%p -> %p\n", process, id );
     return id;
+=======
+    TRACE( "mutex: %p, level: %u\n", Mutex, Level );
+    
+    Mutex->Header.Type = MutantObject;
+    Mutex->Header.Size = sizeof(KMUTEX);
+    Mutex->Header.SignalState = 1;
+    InitializeListHead(&(Mutex->Header.WaitListHead));
+    
+    Mutex->OwnerThread = NULL;
+    Mutex->Abandoned = FALSE;
+    Mutex->ApcDisable = 1;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static void *create_thread_object( HANDLE handle )
@@ -2304,6 +2766,7 @@ static void *create_thread_object( HANDLE handle )
 
     if (!(thread = alloc_kernel_object( PsThreadType, handle, sizeof(*thread), 0 ))) return NULL;
 
+<<<<<<< HEAD
     thread->header.Type = 6;
     thread->header.WaitListHead.Blink = INVALID_HANDLE_VALUE; /* mark as kernel object */
     thread->user_affinity = 0;
@@ -2320,6 +2783,57 @@ static void *create_thread_object( HANDLE handle )
 
 
     return thread;
+=======
+ /***********************************************************************
+ *           KeReleaseMutex   (NTOSKRNL.EXE.@)
+ * 
+ *     -This implementation was made using the reactOS version, with dispatcher objects emulated via K32 Events
+ * 
+ */
+LONG WINAPI KeReleaseMutex(PRKMUTEX Mutex, BOOLEAN Wait)
+{
+    PKTHREAD current_thread;
+    PKMUTEX  mutex;
+    LONG     previous_state;
+
+    current_thread = KeGetCurrentThread();
+    mutex          = (PKMUTEX) Mutex; /* Unrestricted pointer */
+    previous_state = mutex->Header.SignalState;
+
+    /* Ensure we own the mutex */
+    if(mutex->OwnerThread != current_thread)
+        return previous_state;
+
+    mutex->Header.SignalState++;
+
+    /* Are we actually releasing the mutex to the next thread? */
+    if(mutex->Header.SignalState == 1)
+    {
+        /* Remove this Mutex from the current thread's list of owned mutexes */
+        RemoveEntryList(&mutex->MutantListEntry);
+
+        /* Are people waiting for this mutex?*/
+        if(!IsListEmpty(&mutex->Header.WaitListHead))
+        {
+            PKWAIT_BLOCK wait_block;
+            PLIST_ENTRY wait_block_entry;
+            HANDLE wakeup_event;
+
+            /* Wake up the first waiting thread */
+
+            wait_block_entry = RemoveHeadList(&mutex->Header.WaitListHead);
+
+            wait_block = CONTAINING_RECORD(wait_block_entry, KWAIT_BLOCK, WaitListEntry);
+
+            wakeup_event = wait_block->Thread->wakeup_event;
+
+            SetEvent(wakeup_event);         
+            
+        }
+    }
+
+    return previous_state;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static const WCHAR thread_type_name[] = {'T','h','r','e','a','d',0};
@@ -2488,10 +3002,18 @@ KPRIORITY WINAPI KeSetPriorityThread( PKTHREAD Thread, KPRIORITY Priority )
 }
 
 /***********************************************************************
+<<<<<<< HEAD
  *           KeSetSystemAffinityThread   (NTOSKRNL.EXE.@)
+=======
+ *           KeSetEvent   (NTOSKRNL.EXE.@)
+ * 
+ *     -This implementation was made using the reactOS version, with dispatcher objects emulated via K32 Events
+ * 
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
  */
 VOID WINAPI KeSetSystemAffinityThread(KAFFINITY affinity)
 {
+<<<<<<< HEAD
     KeSetSystemAffinityThreadEx(affinity);
 }
 
@@ -2516,6 +3038,49 @@ KAFFINITY WINAPI KeSetSystemAffinityThreadEx(KAFFINITY affinity)
 
     return NtSetInformationThread(GetCurrentThread(), ThreadGroupInformation, &new, sizeof(new))
             ? 0 : thread->user_affinity;
+=======
+    PKEVENT event;
+    LONG previous_state;
+
+    event = (PKEVENT) Event; /* unrestricted pointer */
+
+    if(Wait){
+        FIXME("Unhandled Paramater: Wait\n");
+    }
+
+    previous_state = event->Header.SignalState;
+    event->Header.SignalState = 1;
+
+    if(event->Header.Type == EventSynchronizationObject)
+    {
+        FIXME("Unhandled Object Type: EventSynchronizationObject, partial-stub\n");
+        return previous_state;
+    }
+    
+    if(!previous_state && !(IsListEmpty(&Event->Header.WaitListHead)) )
+    {
+        PLIST_ENTRY   wait_block_entry;
+        PKWAIT_BLOCK wait_block;
+        HANDLE wakeup_event;
+
+        while(!IsListEmpty(&Event->Header.WaitListHead))
+        {
+            /* depending on sync or notification, unlock all or one */
+            wait_block_entry = RemoveHeadList(&event->Header.WaitListHead);
+
+            wait_block = CONTAINING_RECORD(wait_block_entry, KWAIT_BLOCK, WaitListEntry);
+
+            wakeup_event = wait_block->Thread->wakeup_event;
+
+            SetEvent(wakeup_event);
+
+            if(event->Header.Type == EventSynchronizationObject) /* dead code right now */
+                break;
+        }
+    }
+
+    return previous_state;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 
@@ -2546,11 +3111,132 @@ void WINAPI KeRevertToUserAffinityThreadEx(KAFFINITY affinity)
 }
 
 /***********************************************************************
+<<<<<<< HEAD
  *           IoRegisterFileSystem   (NTOSKRNL.EXE.@)
+=======
+ *           KeWaitForSingleObject   (NTOSKRNL.EXE.@)
+ *
+ *     -This implementation was made using the reactOS version, with dispatcher objects emulated via K32 Events
+ *
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
  */
 VOID WINAPI IoRegisterFileSystem(PDEVICE_OBJECT DeviceObject)
 {
+<<<<<<< HEAD
     FIXME("(%p): stub\n", DeviceObject);
+=======
+
+    PKMUTEX generic_object;
+    PKMUTEX mutex_object;
+    PKTHREAD current_thread;
+    PKWAIT_BLOCK our_primary_wait_block;
+    NTSTATUS ret;
+
+    generic_object = (PKMUTEX) Object;
+    mutex_object = (PKMUTEX) Object;
+    current_thread = KeGetCurrentThread();
+    ret = STATUS_SUCCESS;
+
+    if(!MmIsAddressValid(Object)){
+        FIXME("Invalid Object Pointer");
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if(generic_object->Header.Type != MutantObject && generic_object->Header.Type != EventNotificationObject)
+    {
+        FIXME("Unhandled Object Type: %u\n", generic_object->Header.Type);
+        return STATUS_NOT_IMPLEMENTED;
+    }
+
+    if(WaitMode == UserMode)      FIXME("Unhandled Parameter: WaitMode = UserMode\n");
+    if(WaitReason == UserRequest) FIXME("Unhandled Paraneter: WaitReason = UserRequest\n");
+    if(Alertable)                 FIXME("Unhandled Paramater: Alertable = TRUE");
+
+    if(Timeout) TRACE("Timeout: %ld\n", Timeout->QuadPart);
+
+    /* Wait loop, this will loop everytime the thread's dispatcher object (event) is woken up */
+    for(;;)
+    {
+        /* Put APC wakeup detection here */
+
+        /* First check to make sure we need to wait */
+        if(generic_object->Header.Type == MutantObject)
+        {
+            EnterCriticalSection( &sync_cs );
+
+            /* Mutex waits are different, as you can recursively obtain the mutex, so we must also check for ownership */
+            if(mutex_object->Header.SignalState > 0 || mutex_object->OwnerThread == current_thread)
+            {
+                TRACE("Acquiring mutex\n");
+
+                /* At this point we aren't waiting, we are acquiring the mutex, recursively or not*/
+                mutex_object->Header.SignalState--;
+
+                LeaveCriticalSection( &sync_cs );
+
+                /* Make sure that we haven't reached the acquirement limit */
+                if(mutex_object->Header.SignalState == (LONG)MINLONG)
+                {
+                    TRACE("Recursive Mutex Acquirment max\n");
+                    return STATUS_MUTANT_LIMIT_EXCEEDED;
+                }
+
+                /* Did we just now acquire it? */
+                if(!mutex_object->Header.SignalState)
+                {
+                    mutex_object->OwnerThread = current_thread;
+                    /* TODO: disable APCs here if necessary, reactOS does */
+                    if(mutex_object->Abandoned)
+                    {
+                        /* Not sure what this does yet */
+                        WARN("abandoned\n");
+                        mutex_object->Abandoned = FALSE;
+                        ret = STATUS_ABANDONED;
+                    }
+
+                    /* Thread has a list of acquired mutants, add to the tail of the list for accuracy purposes */
+                    InsertTailList(&current_thread->MutantListHead, &mutex_object->MutantListEntry);
+                }
+
+                return ret;
+            }else{
+                LeaveCriticalSection( &sync_cs );
+            }
+        }else if(generic_object->Header.SignalState > 0){
+            TRACE("Waiting for non-mutex\n");
+            /* not a mutex, so we just return without doing anything special since the dispatcher object is signaled */
+            /* TODO: support auto-reset events, which get reset here*/
+            return ret;
+        }
+
+        /* Start the wait */
+    
+        /* set up and add the thread's primary wait block to the wait list*/
+        our_primary_wait_block = &current_thread->WaitBlock[0];
+
+        /* probably not necessary, but we are doing it just in case it will ever be used */
+        our_primary_wait_block->WaitType = WaitAny;
+        our_primary_wait_block->Object   = generic_object;
+
+        /* Add our thread to the object's list of waiters */
+        InsertTailList(&generic_object->Header.WaitListHead, &our_primary_wait_block->WaitListEntry);
+
+        /* Modify "IRQL level" here if necessary for functions such as KeGetApcsDisabled.  Only applies when we support Alertable */
+        
+        TRACE("Waiting for our wakeup event\n");
+        ret = NtWaitForSingleObject(current_thread->wakeup_event, FALSE, Timeout);
+        
+        our_primary_wait_block->Object   = NULL;
+        
+        if(ret == STATUS_TIMEOUT) {
+            TRACE("returning from timeout\n");
+            RemoveEntryList(&our_primary_wait_block->WaitListEntry);
+            return ret;
+        }
+    }
+
+    return ret;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 /***********************************************************************
@@ -2762,6 +3448,43 @@ VOID WINAPI MmUnmapIoSpace( PVOID BaseAddress, SIZE_T NumberOfBytes )
 
 
  /***********************************************************************
+<<<<<<< HEAD
+=======
+ *           ObReferenceObjectByHandle    (NTOSKRNL.EXE.@)
+ */
+NTSTATUS WINAPI ObReferenceObjectByHandle( HANDLE obj, ACCESS_MASK access,
+                                           POBJECT_TYPE type,
+                                           KPROCESSOR_MODE mode, PVOID* ptr,
+                                           POBJECT_HANDLE_INFORMATION info)
+{
+    NTSTATUS stat;
+    THREAD_BASIC_INFORMATION tbi;
+    PVOID object = UlongToHandle(0xdeadbeaf);
+    
+    FIXME( "stub: %p %x %p %d %p %p object type: %s\n", obj, access, type, mode, ptr, info, (type ? debugstr_us(&type->Name) : "") );
+    
+    stat = NtQueryInformationThread(obj, ThreadBasicInformation, &tbi, sizeof(tbi), NULL);
+    if(!stat)
+    {
+        PTEB thread_teb;
+
+        TRACE("setting to object to the PKTHREAD\n");
+
+        thread_teb = (PTEB)tbi.TebBaseAddress;
+        if(!thread_teb->Spare4)
+            init_kthread(thread_teb);
+        object = thread_teb->Spare4;
+    }
+    
+
+    if(ptr)
+        *ptr = object;
+
+    return STATUS_SUCCESS;
+}
+
+ /***********************************************************************
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
  *           ObReferenceObjectByName    (NTOSKRNL.EXE.@)
  */
 NTSTATUS WINAPI ObReferenceObjectByName( UNICODE_STRING *ObjectName,
@@ -2920,10 +3643,15 @@ NTSTATUS WINAPI PsCreateSystemThread(PHANDLE ThreadHandle, ULONG DesiredAccess,
 			             HANDLE ProcessHandle, PCLIENT_ID ClientId,
                                      PKSTART_ROUTINE StartRoutine, PVOID StartContext)
 {
+    NTSTATUS status;
+
     if (!ProcessHandle) ProcessHandle = GetCurrentProcess();
-    return RtlCreateUserThread(ProcessHandle, 0, FALSE, 0, 0,
+    status =  RtlCreateUserThread(ProcessHandle, 0, TRUE, 0, 0,
                                0, StartRoutine, StartContext,
                                ThreadHandle, ClientId);
+    NtResumeThread(*ThreadHandle, NULL);
+
+    return status;
 }
 
 /***********************************************************************
@@ -2991,6 +3719,14 @@ NTSTATUS WINAPI PsImpersonateClient(PETHREAD Thread, PACCESS_TOKEN Token, BOOLEA
 }
 
 
+NTSTATUS WINAPI PsResumeProcess(PEPROCESS Process)
+{
+    FIXME("stub: %p\n", Process);
+
+    return STATUS_SUCCESS;
+}
+
+
 /***********************************************************************
  *           PsRevertToSelf   (NTOSKRNL.EXE.@)
  */
@@ -3015,7 +3751,33 @@ NTSTATUS WINAPI PsSetCreateProcessNotifyRoutine( PCREATE_PROCESS_NOTIFY_ROUTINE 
  */
 NTSTATUS WINAPI PsSetCreateProcessNotifyRoutineEx( PCREATE_PROCESS_NOTIFY_ROUTINE_EX callback, BOOLEAN remove )
 {
-    FIXME( "stub: %p %d\n", callback, remove );
+    /* TODO: make threadsafe */
+    TRACE( ": %p %d\n", callback, remove );
+
+    if(!remove)
+    {
+        struct routine_entry* new_routine = HeapAlloc( GetProcessHeap(), 0, sizeof(*new_routine) );
+
+        new_routine->routine = (void *) callback;
+
+        /* TODO: check whether routine already registered*/
+        list_add_tail( &process_create_ex_routines, &new_routine->entry);
+    }else{
+        struct routine_entry *cur_routine;
+
+        LIST_FOR_EACH_ENTRY( cur_routine, &process_create_ex_routines, struct routine_entry, entry )
+        {
+            if(cur_routine->routine == (void *) callback)
+            {
+                list_remove(&cur_routine->entry);
+                HeapFree( GetProcessHeap(), 0, cur_routine);
+                return STATUS_SUCCESS;
+            }
+        }
+
+        return STATUS_SUCCESS;
+    }
+
     return STATUS_SUCCESS;
 }
 
@@ -3025,7 +3787,16 @@ NTSTATUS WINAPI PsSetCreateProcessNotifyRoutineEx( PCREATE_PROCESS_NOTIFY_ROUTIN
  */
 NTSTATUS WINAPI PsSetCreateThreadNotifyRoutine( PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine )
 {
-    FIXME( "stub: %p\n", NotifyRoutine );
+    struct routine_entry *new_routine;
+
+    TRACE( ": %p\n", NotifyRoutine );
+
+    new_routine = HeapAlloc( GetProcessHeap(), 0, sizeof(*new_routine) );
+
+    new_routine->routine = (void *) NotifyRoutine;
+
+    list_add_tail( &thread_create_routines, &new_routine->entry );
+
     return STATUS_SUCCESS;
 }
 
@@ -3035,8 +3806,23 @@ NTSTATUS WINAPI PsSetCreateThreadNotifyRoutine( PCREATE_THREAD_NOTIFY_ROUTINE No
  */
 NTSTATUS WINAPI PsRemoveCreateThreadNotifyRoutine( PCREATE_THREAD_NOTIFY_ROUTINE NotifyRoutine )
 {
-    FIXME( "stub: %p\n", NotifyRoutine );
-    return STATUS_SUCCESS;
+    struct routine_entry *cur_routine;
+    
+    TRACE( ": %p\n", NotifyRoutine );
+
+    LIST_FOR_EACH_ENTRY( cur_routine, &thread_create_routines, struct routine_entry, entry )
+    {
+        if( (void *)cur_routine->routine == NotifyRoutine )
+        {
+            list_remove( &cur_routine->entry );
+
+            HeapFree( GetProcessHeap(), 0, cur_routine );
+
+            return STATUS_SUCCESS;
+        }
+    }
+
+    return STATUS_PROCEDURE_NOT_FOUND;
 }
 
 
@@ -3059,6 +3845,14 @@ NTSTATUS WINAPI PsRemoveLoadImageNotifyRoutine(PLOAD_IMAGE_NOTIFY_ROUTINE routin
         }
     return STATUS_PROCEDURE_NOT_FOUND;
  }
+
+
+NTSTATUS WINAPI PsSuspendProcess(PEPROCESS Process)
+{
+    FIXME("stub: %p\n", Process);
+
+    return STATUS_SUCCESS;
+}
 
 
 /***********************************************************************
@@ -3096,8 +3890,23 @@ NTSTATUS WINAPI PsSuspendProcess(PEPROCESS process)
  */
 NTSTATUS WINAPI PsResumeProcess(PEPROCESS process)
 {
+<<<<<<< HEAD
     FIXME("stub: %p\n", process);
     return STATUS_NOT_IMPLEMENTED;
+=======
+    TRACE("ExitStatus: %u\n", ExitStatus);
+    RtlExitUserThread(ExitStatus);
+    return STATUS_SUCCESS; /* unnecessary */
+}
+
+
+NTSTATUS WINAPI MmCopyVirtualMemory(PEPROCESS ProcessIn, PVOID AddressIn, PEPROCESS ProcessOut,
+                                    PVOID AddressOut, SIZE_T Size, KPROCESSOR_MODE Mode, PSIZE_T SizeOut)
+{
+    FIXME("stub %p %p %p %p %lu %u %p\n", ProcessIn, AddressIn, ProcessOut, AddressOut, Size, Mode, SizeOut);
+
+    return STATUS_SUCCESS;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 
@@ -3638,6 +4447,7 @@ static HMODULE load_driver( const WCHAR *driver_name, const UNICODE_STRING *keyn
     }
     RegCloseKey( driver_hkey );
 
+<<<<<<< HEAD
     TRACE( "loading driver %s\n", wine_dbgstr_w(str) );
 
     module = LoadLibraryW( str );
@@ -3665,6 +4475,11 @@ static HMODULE load_driver( const WCHAR *driver_name, const UNICODE_STRING *keyn
         }
     }
 
+=======
+    WINE_TRACE( "loading driver %s\n", wine_dbgstr_w(str) );
+    
+    module = load_driver_module( str );
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     HeapFree( GetProcessHeap(), 0, path );
     return module;
 }
@@ -3736,7 +4551,9 @@ NTSTATUS WINAPI ZwLoadDriver( const UNICODE_STRING *service_name )
     struct wine_rb_entry *entry;
     struct wine_driver *driver;
     UNICODE_STRING drv_name;
+    PUNICODE_STRING driver_path;
     NTSTATUS status;
+    HANDLE manager = get_device_manager();
 
     TRACE( "(%s)\n", debugstr_us(service_name) );
 
@@ -3771,7 +4588,18 @@ NTSTATUS WINAPI ZwLoadDriver( const UNICODE_STRING *service_name )
     driver = WINE_RB_ENTRY_VALUE( entry, struct wine_driver, entry );
     driver->service_handle = service_handle;
 
+<<<<<<< HEAD
     pnp_manager_enumerate_root_devices( service_name->Buffer + wcslen( servicesW ) );
+=======
+    driver_path =  &((LDR_MODULE *)(driver->driver_obj.DriverSection))->FullDllName;
+    SERVER_START_REQ( add_driver )
+    {
+        req->manager = wine_server_obj_handle( manager );
+        if(driver_path) wine_server_add_data( req, driver_path->Buffer, driver_path->Length );
+        if (!(status = wine_server_call( req ))) driver->server_driver = wine_server_get_ptr( reply->driver );
+    }
+    SERVER_END_REQ;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
     set_service_status( service_handle, SERVICE_RUNNING,
                         SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN );
@@ -4177,6 +5005,7 @@ void WINAPI KeGenericCallDpc(PKDEFERRED_ROUTINE routine, void *context)
 
 BOOLEAN WINAPI KeSignalCallDpcSynchronize(void *barrier)
 {
+<<<<<<< HEAD
     struct generic_call_dpc_context *context = TlsGetValue(dpc_call_tls_index);
     DEFERRED_REVERSE_BARRIER *b = barrier;
     LONG curr_flag, comp, done_value;
@@ -4209,6 +5038,37 @@ BOOLEAN WINAPI KeSignalCallDpcSynchronize(void *barrier)
         ;
 
     return first;
+=======
+    if(MmIsAddressValid(process))
+        return (HANDLE)(ULONGLONG)process->Pid;
+    else return NULL;
+}
+
+/********************************************************************* 
+ *           PsGetProcessPeb    (NTOSKRNL.@)
+ */
+PPEB WINAPI PsGetProcessPeb(PEPROCESS process)
+{
+    if(!process)
+    {
+        FIXME("we gave the application an invalid process\n");
+        return NULL;
+    }
+    
+    return process->PebAddress;
+    
+
+}
+
+/*********************************************************************
+ *           PsGetProcessWow64Process    (NTOSKRNL.@)
+ */
+PVOID PsGetProcessWow64Process(PEPROCESS process)
+{
+    FIXME("stub: %p\n", process);
+    
+    return 0;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 void WINAPI KeSignalCallDpcDone(void *barrier)
@@ -4290,4 +5150,26 @@ BOOL WINAPI DllMain( HINSTANCE inst, DWORD reason, LPVOID reserved )
         break;
     }
     return TRUE;
+}
+
+/*********************************************************************
+ *           KeStackAttachProcess    (NTOSKRNL.@)
+ */
+void WINAPI KeStackAttachProcess(PRKPROCESS Process, PRKAPC_STATE ApcState)
+{
+    /* we don't support KPROCESSs, must be an EPROCESS */
+    PEPROCESS e_process = (PEPROCESS) Process;
+
+    if(e_process == IoGetCurrentProcess()) 
+        return;
+    else 
+        FIXME("stub: %p %p\n", Process, ApcState);
+}
+
+/*********************************************************************
+ *           KeUnStackDeAttachProcess    (NTOSKRNL.@)
+ */
+void WINAPI KeUnstackDetachProcess(PRKAPC_STATE ApcState)
+{
+    FIXME("stub: %p\n", ApcState);
 }

@@ -29,7 +29,10 @@
 #endif
 #include "x11drv.h"
 #include "wine/debug.h"
+<<<<<<< HEAD
 #include "wine/heap.h"
+=======
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 #include "wine/unicode.h"
 
 WINE_DEFAULT_DEBUG_CHANNEL(x11drv);
@@ -42,6 +45,7 @@ static MONITORINFOEXW default_monitor =
     MONITORINFOF_PRIMARY,       /* dwFlags */
     { '\\','\\','.','\\','D','I','S','P','L','A','Y','1',0 }   /* szDevice */
 };
+static const WCHAR monitor_deviceW[] = { '\\','\\','.','\\','D','I','S','P','L','A','Y','%','d',0 };
 
 static MONITORINFOEXW *monitors;
 static int nb_monitors;
@@ -91,6 +95,8 @@ static int query_screens(void)
     if (monitors != &default_monitor) HeapFree( GetProcessHeap(), 0, monitors );
     if ((monitors = HeapAlloc( GetProcessHeap(), 0, count * sizeof(*monitors) )))
     {
+        int device = 2; /* 1 is reserved for primary */
+
         nb_monitors = count;
         for (i = 0; i < nb_monitors; i++)
         {
@@ -100,10 +106,21 @@ static int query_screens(void)
             monitors[i].rcMonitor.right  = screens[i].x_org + screens[i].width;
             monitors[i].rcMonitor.bottom = screens[i].y_org + screens[i].height;
             monitors[i].dwFlags          = 0;
+<<<<<<< HEAD
             monitors[i].rcWork           = get_work_area( &monitors[i].rcMonitor );
+=======
+            if (!IntersectRect( &monitors[i].rcWork, &rc_work, &monitors[i].rcMonitor ))
+                monitors[i].rcWork = monitors[i].rcMonitor;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         }
 
         get_primary()->dwFlags |= MONITORINFOF_PRIMARY;
+
+        for (i = 0; i < nb_monitors; i++)
+        {
+            snprintfW( monitors[i].szDevice, sizeof(monitors[i].szDevice) / sizeof(WCHAR),
+                       monitor_deviceW, (monitors[i].dwFlags & MONITORINFOF_PRIMARY) ? 1 : device++ );
+        }
     }
     else count = 0;
 

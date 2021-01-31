@@ -55,6 +55,7 @@ struct process
     struct object        obj;             /* object header */
     struct list          entry;           /* entry in system-wide process list */
     process_id_t         parent_id;       /* parent process id (at the time of creation) */
+    thread_id_t          parent_thread_id;/* parent thread id (at time of creation) */
     struct list          thread_list;     /* thread list */
     struct debug_obj    *debug_obj;       /* debug object debugging this process */
     struct debug_event  *debug_event;     /* debug event being sent to debugger */

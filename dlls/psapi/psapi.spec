@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 @ stdcall -import EmptyWorkingSet(long) K32EmptyWorkingSet
 @ stdcall -import EnumDeviceDrivers(ptr long ptr) K32EnumDeviceDrivers
 @ stdcall -import EnumPageFilesA(ptr ptr) K32EnumPageFilesA
@@ -25,3 +26,31 @@
 @ stdcall -import InitializeProcessForWsWatch(long) K32InitializeProcessForWsWatch
 @ stdcall -import QueryWorkingSet(long ptr long) K32QueryWorkingSet
 @ stdcall -import QueryWorkingSetEx(long ptr long) K32QueryWorkingSetEx
+=======
+@ stdcall EmptyWorkingSet(long)
+@ stdcall EnumDeviceDrivers(ptr long ptr)
+@ stdcall EnumPageFilesA(ptr ptr)
+@ stdcall EnumPageFilesW(ptr ptr)
+@ stdcall EnumProcessModules(long ptr long ptr)
+@ stdcall EnumProcessModulesEx(long ptr long ptr long)
+@ stdcall EnumProcesses(ptr long ptr)
+@ stdcall GetDeviceDriverBaseNameA(ptr ptr long)
+@ stdcall GetDeviceDriverBaseNameW(ptr ptr long)
+@ stdcall GetDeviceDriverFileNameA(ptr ptr long)
+@ stdcall GetDeviceDriverFileNameW(ptr ptr long)
+@ stdcall GetMappedFileNameA(long ptr ptr long)
+@ stdcall GetMappedFileNameW(long ptr ptr long)
+@ stdcall GetModuleBaseNameA(long long ptr long)
+@ stdcall GetModuleBaseNameW(long long ptr long)
+@ stdcall GetModuleFileNameExA(long long ptr long)
+@ stdcall GetModuleFileNameExW(long long ptr long)
+@ stdcall GetModuleInformation(long long ptr long)
+@ stdcall GetPerformanceInfo(ptr long)
+@ stdcall GetProcessImageFileNameA(long ptr long)
+@ stdcall GetProcessImageFileNameW(long ptr long)
+@ stdcall GetProcessMemoryInfo(long ptr long)
+@ stdcall GetWsChanges(long ptr long)
+@ stdcall InitializeProcessForWsWatch(long)
+@ stdcall QueryWorkingSet(long ptr long)
+@ stdcall QueryWorkingSetEx(long ptr long)
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9

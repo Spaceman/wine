@@ -756,11 +756,13 @@ static NTSTATUS create_disk_device( enum device_type type, struct disk_device **
     static const WCHAR ramdiskW[] = {'\\','D','e','v','i','c','e','\\','R','a','m','d','i','s','k','%','u',0};
     static const WCHAR cdromlinkW[] = {'\\','?','?','\\','C','d','R','o','m','%','u',0};
     static const WCHAR physdriveW[] = {'\\','?','?','\\','P','h','y','s','i','c','a','l','D','r','i','v','e','%','u',0};
+    static const WCHAR harddisk_dr[] = {'\\','D','e','v','i','c','e','\\','H','a','r','d','d','i','s','k','0','\\','D','R','%','u',0};
 
     UINT i, first = 0;
     NTSTATUS status = 0;
     const WCHAR *format = NULL;
     const WCHAR *link_format = NULL;
+    INT link_offset = 0;
     UNICODE_STRING name;
     DEVICE_OBJECT *dev_obj;
     struct disk_device *device;
@@ -775,7 +777,9 @@ static NTSTATUS create_disk_device( enum device_type type, struct disk_device **
         break;
     case DEVICE_HARDDISK_VOL:
         format = harddiskvolW;
+        link_format = harddisk_dr;
         first = 1;  /* harddisk volumes start counting from 1 */
+        link_offset = -1;
         break;
     case DEVICE_FLOPPY:
         format = floppyW;
@@ -816,7 +820,7 @@ static NTSTATUS create_disk_device( enum device_type type, struct disk_device **
             symlink.MaximumLength = (strlenW(link_format) + 10) * sizeof(WCHAR);
             if ((symlink.Buffer = RtlAllocateHeap( GetProcessHeap(), 0, symlink.MaximumLength)))
             {
-                sprintfW( symlink.Buffer, link_format, i );
+                sprintfW( symlink.Buffer, link_format, (i + link_offset) );
                 symlink.Length = strlenW(symlink.Buffer) * sizeof(WCHAR);
                 if (!IoCreateSymbolicLink( &symlink, &name )) device->symlink = symlink;
             }
@@ -1752,6 +1756,7 @@ NTSTATUS query_unix_device( ULONGLONG unix_dev, enum device_type *type,
     return status;
 }
 
+<<<<<<< HEAD
 static void query_property( struct disk_device *device, IRP *irp )
 {
     IO_STACK_LOCATION *irpsp = IoGetCurrentIrpStackLocation( irp );
@@ -1824,6 +1829,167 @@ static void query_property( struct disk_device *device, IRP *irp )
         irp->IoStatus.u.Status = STATUS_NOT_SUPPORTED;
         break;
     }
+=======
+/* loosely based of reactOS drivers */
+static NTSTATUS query_device_property( void *buff, SIZE_T insize,
+                                       SIZE_T outsize, IO_STATUS_BLOCK *iosb,
+                                       struct disk_device *device )
+{
+    PSTORAGE_PROPERTY_QUERY property_query;
+    PSTORAGE_DEVICE_DESCRIPTOR descriptor;
+    PSTORAGE_DESCRIPTOR_HEADER header;
+    PCHAR serial_buffer;
+    SIZE_T out_length;
+    const char *serial = "JR10006P31HHLF";
+
+    /* sanity check */
+    if(insize < sizeof(STORAGE_PROPERTY_QUERY) || !buff)
+    {
+        FIXME("invalid property query, behavior may not be correct\n");
+        return STATUS_INVALID_DEVICE_REQUEST;
+    }
+
+    property_query = (PSTORAGE_PROPERTY_QUERY)buff;
+
+    if(property_query->PropertyId != StorageDeviceProperty)
+    {
+        /* we only support device property */
+        return STATUS_INVALID_PARAMETER_1;
+    }
+
+    if(property_query->QueryType == PropertyExistsQuery)
+    {
+        /* yes we support it */
+        return STATUS_SUCCESS;
+    }
+
+    if(property_query->QueryType != PropertyStandardQuery)
+    {
+        /* unknown QueryType */
+        return STATUS_INVALID_PARAMETER_2;
+    }
+
+    /* we have already established this is a StorageDeviceProperty request */
+    
+    out_length = sizeof(STORAGE_DEVICE_DESCRIPTOR) + strlen(serial) + 3;
+
+    if(outsize < out_length)
+    {
+        header = (PSTORAGE_DESCRIPTOR_HEADER) buff;
+
+        header->Version = out_length;
+        header->Size = out_length;
+
+        iosb->Information = sizeof(STORAGE_DESCRIPTOR_HEADER);
+
+        return STATUS_SUCCESS;
+    }
+
+    descriptor = (PSTORAGE_DEVICE_DESCRIPTOR)buff;
+
+    descriptor->Version = out_length;
+    descriptor->Size = out_length;
+    descriptor->DeviceType = 0;
+    descriptor->DeviceTypeModifier = 0;
+    descriptor->RemovableMedia = FALSE;
+    descriptor->CommandQueueing = FALSE;
+    descriptor->BusType = BusTypeAta;
+    descriptor->VendorIdOffset = 0;
+    descriptor->ProductIdOffset = 0;
+    descriptor->ProductRevisionOffset = 0;
+    descriptor->SerialNumberOffset = sizeof(STORAGE_DEVICE_DESCRIPTOR) - sizeof(UCHAR);
+    descriptor->RawPropertiesLength = strlen(serial) + 4;
+
+    serial_buffer = descriptor + sizeof(STORAGE_DEVICE_DESCRIPTOR) - sizeof(UCHAR);
+
+    strcpy(serial_buffer, serial);
+
+    iosb->Information = out_length;
+    return STATUS_SUCCESS;
+}
+
+static unsigned char copied_idd[] = {0x5A,0x0C,0xFF,0x3F,0x37,0xC8,0x10,0x00,0x00,0x00,0x00,0x00,0x3F,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0x35,0x32,0x30,
+0x42,0x36,0x33,0x37,0x34,0x33,0x32,0x30,0x36,0x30,0x41,0x35,0x20,0x20,0x20,0x20,0x00,0x00,0x00,0x00,0x04,0x00,0x30,0x35,
+0x41,0x37,0x42,0x42,0x30,0x46,0x49,0x4B,0x47,0x4E,0x54,0x53,0x4E,0x4F,0x53,0x20,0x43,0x4B,0x30,0x33,0x53,0x30,0x37,0x33,
+0x36,0x41,0x47,0x30,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x20,0x10,0x80,
+0x00,0x40,0x00,0x2F,0x00,0x40,0x00,0x02,0x00,0x02,0x07,0x00,0xFF,0x3F,0x10,0x00,0x3F,0x00,0x10,0xFC,0xFB,0x00,0x10,0x01,
+0x30,0xCF,0xFC,0x06,0x00,0x00,0x07,0x00,0x03,0x00,0x78,0x00,0x78,0x00,0x78,0x00,0x78,0x00,0x00,0x42,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x1F,0x00,0x0E,0xC7,0x06,0x00,0x4C,0x00,0xCC,0x00,0xFC,0x01,0x10,0x01,0x6B,0x74,0x69,0x74,
+0x63,0x61,0x29,0x74,0x49,0xB4,0x63,0x61,0x7F,0x40,0x01,0x00,0x00,0x00,0xFE,0x00,0xFE,0xFF,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x30,0xCF,0xFC,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x40,0x00,0x00,
+0x02,0x50,0x73,0x6B,0x02,0x34,0x5A,0x06,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x1A,0x40,
+0x18,0x40,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x09,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x21,0x00,0x00,0x00,0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x3F,0x10,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+0x00,0x00,0x00,0x00,0x00,0x00,0xA5,0x89,0xDD,0xDD,0xDD,0xDD};
+
+static NTSTATUS query_indentify_data( void *buff, SIZE_T insize,
+                                       SIZE_T outsize, IO_STATUS_BLOCK *iosb,
+                                       struct disk_device *device )
+{
+    PSENDCMDINPARAMS input;
+    IDEREGS idr;
+    PSENDCMDOUTPARAMS output;
+    PIDENTIFY_DEVICE_DATA idd;
+    DRIVERSTATUS driver_status;
+
+
+    if( insize < (sizeof(SENDCMDINPARAMS) -1) )
+    {
+        FIXME("Invalid Input Size. expected >= %u got=%u\n", sizeof(SENDCMDINPARAMS) -1, insize);
+        goto fail;
+    }
+
+    if( outsize < (sizeof(SENDCMDOUTPARAMS) - 1 + 512) )
+    {
+        FIXME("Invalid Output Size. expected >= %u got=%u\n", sizeof(SENDCMDOUTPARAMS) - 1 + 512, outsize);
+        goto fail;
+    }
+
+    input = (PSENDCMDINPARAMS) buff;
+    idr = input->irDriveRegs;
+
+    FIXME("input data : bFeaturesReg=%u bSectorCountReg=%u bSectorNumberReg=%u bCylLowReg%u bCylHighReg=%u bDriveHeadReg=%u bCommandReg=%u\n",
+    idr.bFeaturesReg, idr.bSectorCountReg, idr.bSectorNumberReg, idr.bCylLowReg, idr.bCylHighReg, idr.bDriveHeadReg, idr.bCommandReg);
+    
+    if(idr.bCommandReg != ID_CMD)
+    {
+        FIXME("bCommandReg != ID_CMD \n");
+        goto fail;
+    }
+
+    output = (PSENDCMDOUTPARAMS) buff;
+
+    RtlZeroMemory(output, sizeof(SENDCMDOUTPARAMS) -1 + 512);
+
+    output->cBufferSize = sizeof(IDENTIFY_DEVICE_DATA);
+
+    idd = (PIDENTIFY_DEVICE_DATA) &output->bBuffer[0];
+
+    RtlCopyMemory(idd, copied_idd, sizeof(copied_idd));
+
+    driver_status.bDriverError = 0;
+    driver_status.bIDEError = 0;
+    output->DriverStatus = driver_status;
+
+    iosb->Information = (sizeof(SENDCMDOUTPARAMS) - 1 + 512);
+
+    return STATUS_SUCCESS;
+
+    fail:
+
+    iosb->Information = 0;
+    return  STATUS_NOT_SUPPORTED;
+    
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 /* handler for ioctls on the harddisk device */
@@ -1899,8 +2065,30 @@ static NTSTATUS WINAPI harddisk_ioctl( DEVICE_OBJECT *device, IRP *irp )
         break;
     }
     case IOCTL_STORAGE_QUERY_PROPERTY:
+<<<<<<< HEAD
         query_property( dev, irp );
         break;
+=======
+    {
+
+        irp->IoStatus.u.Status = query_device_property( irp->AssociatedIrp.SystemBuffer,
+                                                            irpsp->Parameters.DeviceIoControl.InputBufferLength,
+                                                            irpsp->Parameters.DeviceIoControl.OutputBufferLength,
+                                                            &irp->IoStatus,
+                                                            dev);
+
+        break;
+    }
+    case SMART_RCV_DRIVE_DATA:
+    {
+        irp->IoStatus.u.Status = query_indentify_data( irp->AssociatedIrp.SystemBuffer,
+                                                            irpsp->Parameters.DeviceIoControl.InputBufferLength,
+                                                            irpsp->Parameters.DeviceIoControl.OutputBufferLength,
+                                                            &irp->IoStatus,
+                                                            dev);
+        break;
+    }
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     default:
     {
         ULONG code = irpsp->Parameters.DeviceIoControl.IoControlCode;

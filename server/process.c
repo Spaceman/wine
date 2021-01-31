@@ -43,6 +43,7 @@
 #include "winternl.h"
 
 #include "file.h"
+#include "device.h"
 #include "handle.h"
 #include "process.h"
 #include "thread.h"
@@ -514,8 +515,13 @@ struct process *create_process( int fd, struct process *parent, int inherit_all,
         goto error;
     }
     process->parent_id       = 0;
+<<<<<<< HEAD
     process->debug_obj       = NULL;
     process->debug_event     = NULL;
+=======
+    process->parent_thread_id= 0;
+    process->debugger        = NULL;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     process->handles         = NULL;
     process->msg_fd          = NULL;
     process->sigkill_timeout = NULL;
@@ -582,7 +588,12 @@ struct process *create_process( int fd, struct process *parent, int inherit_all,
         std_handles[2] = info->hstderr;
 
         process->parent_id = parent->id;
+<<<<<<< HEAD
         process->handles = inherit_all ? copy_handle_table( process, parent, handles, handle_count, std_handles )
+=======
+        process->parent_thread_id = parent_thread->id;
+        process->handles = inherit_all ? copy_handle_table( process, parent )
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
                                        : alloc_handle_table( process, 0 );
         /* Note: for security reasons, starting a new process does not attempt
          * to use the current impersonation token for the new process */
@@ -824,6 +835,9 @@ static struct process_dll *process_load_dll( struct process *process, mod_handle
         }
         list_add_tail( &process->dlls, &dll->entry );
     }
+
+    dispatch_load_image_event( process, base );
+
     return dll;
 }
 
@@ -846,6 +860,8 @@ static void process_unload_dll( struct process *process, mod_handle_t base )
 static void terminate_process( struct process *process, struct thread *skip, int exit_code )
 {
     struct thread *thread;
+
+    dispatch_terminate_process_event( process );
 
     grab_object( process );  /* make sure it doesn't get freed when threads die */
     process->is_terminating = 1;
@@ -1371,7 +1387,15 @@ DECL_HANDLER(init_process_done)
     set_process_startup_state( process, STARTUP_DONE );
 
     if (req->gui) process->idle_event = create_event( NULL, NULL, 0, 1, 0, NULL );
+<<<<<<< HEAD
     if (process->debug_obj) set_process_debug_flag( process, 1 );
+=======
+    if (process->debugger) set_process_debug_flag( process, 1 );
+
+    dispatch_create_process_event( process );
+    dispatch_create_thread_event( current );
+
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     reply->suspend = (current->suspend || process->suspend);
 }
 

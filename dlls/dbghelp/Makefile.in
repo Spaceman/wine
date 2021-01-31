@@ -2,8 +2,13 @@ MODULE    = dbghelp.dll
 IMPORTLIB = dbghelp
 EXTRADEFS = -D_IMAGEHLP_SOURCE_
 DELAYIMPORTS = version
+<<<<<<< HEAD
 
 EXTRADLLFLAGS = -mno-cygwin
+=======
+EXTRALIBS = $(Z_LIBS) $(CORESERVICES_LIBS) $(COREFOUNDATION_LIBS)
+IMPORTS = psapi
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 C_SRCS = \
 	coff.c \

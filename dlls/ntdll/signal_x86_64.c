@@ -22,6 +22,40 @@
 
 #include <stdlib.h>
 #include <stdarg.h>
+<<<<<<< HEAD
+=======
+#include <stdio.h>
+#include <sys/types.h>
+#ifdef HAVE_UNISTD_H
+# include <unistd.h>
+#endif
+#ifdef HAVE_MACHINE_SYSARCH_H
+# include <machine/sysarch.h>
+#endif
+#ifdef HAVE_SYS_PARAM_H
+# include <sys/param.h>
+#endif
+#ifdef HAVE_SYSCALL_H
+# include <syscall.h>
+#else
+# ifdef HAVE_SYS_SYSCALL_H
+#  include <sys/syscall.h>
+# endif
+#endif
+#ifdef HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
+#ifdef HAVE_SYS_SIGNAL_H
+# include <sys/signal.h>
+#endif
+#ifdef HAVE_SYS_UCONTEXT_H
+# include <sys/ucontext.h>
+#endif
+#ifdef HAVE_LIBUNWIND_H
+# define UNW_LOCAL_ONLY
+# include <libunwind.h>
+#endif
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 #define NONAMELESSUNION
 #define NONAMELESSSTRUCT
@@ -347,8 +381,1212 @@ __ASM_GLOBAL_FUNC( RtlCaptureContext,
  *              RtlWow64GetThreadContext  (NTDLL.@)
  */
 NTSTATUS WINAPI RtlWow64GetThreadContext( HANDLE handle, WOW64_CONTEXT *context )
+<<<<<<< HEAD
 {
     return NtQueryInformationThread( handle, ThreadWow64Context, context, sizeof(*context), NULL );
+=======
+{
+    BOOL self;
+    NTSTATUS ret;
+    context_t server_context;
+    unsigned int server_flags = wow64_get_server_context_flags( context->ContextFlags );
+
+    if ((ret = get_thread_context( handle, &server_context, server_flags, &self ))) return ret;
+    if (self) return STATUS_INVALID_PARAMETER;
+    return wow64_context_from_server( context, &server_context );
+}
+
+
+/******************************************************************************
+ *              RtlWow64SetThreadContext  (NTDLL.@)
+ */
+NTSTATUS WINAPI RtlWow64SetThreadContext( HANDLE handle, const WOW64_CONTEXT *context )
+{
+    BOOL self;
+    context_t server_context;
+
+    wow64_context_to_server( &server_context, context );
+    return set_thread_context( handle, &server_context, &self );
+}
+
+
+extern void raise_func_trampoline( EXCEPTION_RECORD *rec, CONTEXT *context, raise_func func );
+__ASM_GLOBAL_FUNC( raise_func_trampoline,
+                   __ASM_CFI(".cfi_signal_frame\n\t")
+                   __ASM_CFI(".cfi_def_cfa %rbp,160\n\t")  /* red zone + rip + rbp + rdi + rsi */
+                   __ASM_CFI(".cfi_rel_offset %rip,24\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rbp,16\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rdi,8\n\t")
+                   __ASM_CFI(".cfi_rel_offset %rsi,0\n\t")
+                   "call *%rdx\n\t"
+                   "int $3")
+
+/***********************************************************************
+ *           setup_exception
+ *
+ * Setup a proper stack frame for the raise function, and modify the
+ * sigcontext so that the return from the signal handler will call
+ * the raise function.
+ */
+static EXCEPTION_RECORD *setup_exception( ucontext_t *sigcontext, raise_func func )
+{
+    struct stack_layout
+    {
+        CONTEXT           context;
+        EXCEPTION_RECORD  rec;
+        ULONG64           rsi;
+        ULONG64           rdi;
+        ULONG64           rbp;
+        ULONG64           rip;
+        ULONG64           red_zone[16];
+    } *stack;
+    ULONG64 *rsp_ptr;
+    DWORD exception_code = 0;
+
+    stack = (struct stack_layout *)(RSP_sig(sigcontext) & ~15);
+
+    /* stack sanity checks */
+
+    if (is_inside_signal_stack( stack ))
+    {
+        ERR( "nested exception on signal stack in thread %04x eip %016lx esp %016lx stack %p-%p\n",
+             GetCurrentThreadId(), (ULONG_PTR)RIP_sig(sigcontext), (ULONG_PTR)RSP_sig(sigcontext),
+             NtCurrentTeb()->Tib.StackLimit, NtCurrentTeb()->Tib.StackBase );
+        abort_thread(1);
+    }
+
+    if (stack - 1 > stack || /* check for overflow in subtraction */
+        (char *)stack <= (char *)NtCurrentTeb()->DeallocationStack ||
+        (char *)stack > (char *)NtCurrentTeb()->Tib.StackBase)
+    {
+        WARN( "exception outside of stack limits in thread %04x eip %016lx esp %016lx stack %p-%p\n",
+              GetCurrentThreadId(), (ULONG_PTR)RIP_sig(sigcontext), (ULONG_PTR)RSP_sig(sigcontext),
+              NtCurrentTeb()->Tib.StackLimit, NtCurrentTeb()->Tib.StackBase );
+    }
+    else if ((char *)(stack - 1) < (char *)NtCurrentTeb()->DeallocationStack + 4096)
+    {
+        /* stack overflow on last page, unrecoverable */
+        UINT diff = (char *)NtCurrentTeb()->DeallocationStack + 4096 - (char *)(stack - 1);
+        ERR( "stack overflow %u bytes in thread %04x eip %016lx esp %016lx stack %p-%p-%p\n",
+             diff, GetCurrentThreadId(), (ULONG_PTR)RIP_sig(sigcontext),
+             (ULONG_PTR)RSP_sig(sigcontext), NtCurrentTeb()->DeallocationStack,
+             NtCurrentTeb()->Tib.StackLimit, NtCurrentTeb()->Tib.StackBase );
+        abort_thread(1);
+    }
+    else if ((char *)(stack - 1) < (char *)NtCurrentTeb()->Tib.StackLimit)
+    {
+        /* stack access below stack limit, may be recoverable */
+        if (virtual_handle_stack_fault( stack - 1 )) exception_code = EXCEPTION_STACK_OVERFLOW;
+        else
+        {
+            UINT diff = (char *)NtCurrentTeb()->Tib.StackLimit - (char *)(stack - 1);
+            ERR( "stack overflow %u bytes in thread %04x eip %016lx esp %016lx stack %p-%p-%p\n",
+                 diff, GetCurrentThreadId(), (ULONG_PTR)RIP_sig(sigcontext),
+                 (ULONG_PTR)RSP_sig(sigcontext), NtCurrentTeb()->DeallocationStack,
+                 NtCurrentTeb()->Tib.StackLimit, NtCurrentTeb()->Tib.StackBase );
+            abort_thread(1);
+        }
+    }
+
+    stack--;  /* push the stack_layout structure */
+#if defined(VALGRIND_MAKE_MEM_UNDEFINED)
+    VALGRIND_MAKE_MEM_UNDEFINED(stack, sizeof(*stack));
+#elif defined(VALGRIND_MAKE_WRITABLE)
+    VALGRIND_MAKE_WRITABLE(stack, sizeof(*stack));
+#endif
+    stack->rec.ExceptionRecord  = NULL;
+    stack->rec.ExceptionCode    = exception_code;
+    stack->rec.ExceptionFlags   = EXCEPTION_CONTINUABLE;
+    stack->rec.ExceptionAddress = (void *)RIP_sig(sigcontext);
+    stack->rec.NumberParameters = 0;
+    save_context( &stack->context, sigcontext );
+
+    /* store return address and %rbp without aligning, so that the offset is fixed */
+    rsp_ptr = (ULONG64 *)RSP_sig(sigcontext) - 16;
+    *(--rsp_ptr) = RIP_sig(sigcontext);
+    *(--rsp_ptr) = RBP_sig(sigcontext);
+    *(--rsp_ptr) = RDI_sig(sigcontext);
+    *(--rsp_ptr) = RSI_sig(sigcontext);
+
+    /* now modify the sigcontext to return to the raise function */
+    RIP_sig(sigcontext) = (ULONG_PTR)raise_func_trampoline;
+    RDI_sig(sigcontext) = (ULONG_PTR)&stack->rec;
+    RSI_sig(sigcontext) = (ULONG_PTR)&stack->context;
+    RDX_sig(sigcontext) = (ULONG_PTR)func;
+    RBP_sig(sigcontext) = (ULONG_PTR)rsp_ptr;
+    RSP_sig(sigcontext) = (ULONG_PTR)stack;
+    /* clear single-step, direction, and align check flag */
+    EFL_sig(sigcontext) &= ~(0x100|0x400|0x40000);
+
+    return &stack->rec;
+}
+
+
+/***********************************************************************
+ *           get_exception_context
+ *
+ * Get a pointer to the context built by setup_exception.
+ */
+static inline CONTEXT *get_exception_context( EXCEPTION_RECORD *rec )
+{
+    return (CONTEXT *)rec - 1;  /* cf. stack_layout structure */
+}
+
+
+/**********************************************************************
+ *           find_function_info
+ */
+static RUNTIME_FUNCTION *find_function_info( ULONG64 pc, HMODULE module,
+                                             RUNTIME_FUNCTION *func, ULONG size )
+{
+    int min = 0;
+    int max = size/sizeof(*func) - 1;
+
+    while (min <= max)
+    {
+        int pos = (min + max) / 2;
+        if ((char *)pc < (char *)module + func[pos].BeginAddress) max = pos - 1;
+        else if ((char *)pc >= (char *)module + func[pos].EndAddress) min = pos + 1;
+        else
+        {
+            func += pos;
+            while (func->UnwindData & 1)  /* follow chained entry */
+                func = (RUNTIME_FUNCTION *)((char *)module + (func->UnwindData & ~1));
+            return func;
+        }
+    }
+    return NULL;
+}
+
+/**********************************************************************
+ *           lookup_function_info
+ */
+static RUNTIME_FUNCTION *lookup_function_info( ULONG64 pc, ULONG64 *base, LDR_MODULE **module )
+{
+    RUNTIME_FUNCTION *func = NULL;
+    struct dynamic_unwind_entry *entry;
+    ULONG size;
+
+    /* PE module or wine module */
+    if (!LdrFindEntryForAddress( (void *)pc, module ))
+    {
+        *base = (ULONG64)(*module)->BaseAddress;
+        if ((func = RtlImageDirectoryEntryToData( (*module)->BaseAddress, TRUE,
+                                                  IMAGE_DIRECTORY_ENTRY_EXCEPTION, &size )))
+        {
+            /* lookup in function table */
+            func = find_function_info( pc, (*module)->BaseAddress, func, size );
+        }
+    }
+    else
+    {
+        *module = NULL;
+
+        RtlEnterCriticalSection( &dynamic_unwind_section );
+        LIST_FOR_EACH_ENTRY( entry, &dynamic_unwind_list, struct dynamic_unwind_entry, entry )
+        {
+            if (pc >= entry->base && pc < entry->base + entry->size)
+            {
+                *base = entry->base;
+
+                /* use callback or lookup in function table */
+                if (entry->callback)
+                    func = entry->callback( pc, entry->context );
+                else
+                    func = find_function_info( pc, (HMODULE)entry->base, entry->table, entry->table_size );
+                break;
+            }
+        }
+        RtlLeaveCriticalSection( &dynamic_unwind_section );
+    }
+
+    return func;
+}
+
+static DWORD nested_exception_handler( EXCEPTION_RECORD *rec, EXCEPTION_REGISTRATION_RECORD *frame,
+                                       CONTEXT *context, EXCEPTION_REGISTRATION_RECORD **dispatcher )
+{
+    if (rec->ExceptionFlags & (EH_UNWINDING | EH_EXIT_UNWIND)) return ExceptionContinueSearch;
+
+    /* FIXME */
+    return ExceptionNestedException;
+}
+
+/**********************************************************************
+ *           call_handler
+ *
+ * Call a single exception handler.
+ * FIXME: Handle nested exceptions.
+ */
+static DWORD call_handler( EXCEPTION_RECORD *rec, CONTEXT *context, DISPATCHER_CONTEXT *dispatch )
+{
+    EXCEPTION_REGISTRATION_RECORD frame;
+    DWORD res;
+
+    frame.Handler = nested_exception_handler;
+    __wine_push_frame( &frame );
+
+    TRACE( "calling handler %p (rec=%p, frame=0x%lx context=%p, dispatch=%p)\n",
+           dispatch->LanguageHandler, rec, dispatch->EstablisherFrame, dispatch->ContextRecord, dispatch );
+    res = dispatch->LanguageHandler( rec, dispatch->EstablisherFrame, context, dispatch );
+    TRACE( "handler at %p returned %u\n", dispatch->LanguageHandler, res );
+
+    __wine_pop_frame( &frame );
+    return res;
+}
+
+
+/**********************************************************************
+ *           call_teb_handler
+ *
+ * Call a single exception handler from the TEB chain.
+ * FIXME: Handle nested exceptions.
+ */
+static DWORD call_teb_handler( EXCEPTION_RECORD *rec, CONTEXT *context, DISPATCHER_CONTEXT *dispatch,
+                                  EXCEPTION_REGISTRATION_RECORD *teb_frame )
+{
+    DWORD res;
+
+    TRACE( "calling TEB handler %p (rec=%p, frame=%p context=%p, dispatch=%p)\n",
+           teb_frame->Handler, rec, teb_frame, dispatch->ContextRecord, dispatch );
+    res = teb_frame->Handler( rec, teb_frame, context, (EXCEPTION_REGISTRATION_RECORD**)dispatch );
+    TRACE( "handler at %p returned %u\n", teb_frame->Handler, res );
+    return res;
+}
+
+
+/**********************************************************************
+ *           call_stack_handlers
+ *
+ * Call the stack handlers chain.
+ */
+static NTSTATUS call_stack_handlers( EXCEPTION_RECORD *rec, CONTEXT *orig_context )
+{
+    EXCEPTION_REGISTRATION_RECORD *teb_frame = NtCurrentTeb()->Tib.ExceptionList;
+    UNWIND_HISTORY_TABLE table;
+    DISPATCHER_CONTEXT dispatch;
+    CONTEXT context;
+    LDR_MODULE *module;
+    NTSTATUS status;
+
+    context = *orig_context;
+    dispatch.TargetIp      = 0;
+    dispatch.ContextRecord = &context;
+    dispatch.HistoryTable  = &table;
+    for (;;)
+    {
+        /* FIXME: should use the history table to make things faster */
+
+        dispatch.ImageBase = 0;
+        dispatch.ControlPc = context.Rip;
+        dispatch.ScopeIndex = 0;
+
+        /* first look for PE exception information */
+
+        if ((dispatch.FunctionEntry = lookup_function_info( dispatch.ControlPc, &dispatch.ImageBase, &module )))
+        {
+            dispatch.LanguageHandler = RtlVirtualUnwind( UNW_FLAG_EHANDLER, dispatch.ImageBase,
+                                                         dispatch.ControlPc, dispatch.FunctionEntry,
+                                                         &context, &dispatch.HandlerData,
+                                                         &dispatch.EstablisherFrame, NULL );
+            goto unwind_done;
+        }
+
+        /* then look for host system exception information */
+
+        if (!module || (module->Flags & LDR_WINE_INTERNAL))
+        {
+            BOOL got_info = FALSE;
+            struct dwarf_eh_bases bases;
+            const struct dwarf_fde *fde = _Unwind_Find_FDE( (void *)(dispatch.ControlPc - 1), &bases );
+
+            if (fde)
+            {
+                status = dwarf_virtual_unwind( dispatch.ControlPc, &dispatch.EstablisherFrame, &context,
+                                               fde, &bases, &dispatch.LanguageHandler, &dispatch.HandlerData );
+                if (status != STATUS_SUCCESS) return status;
+                got_info = TRUE;
+            }
+#ifdef HAVE_LIBUNWIND_H
+            else
+            {
+                status = libunwind_virtual_unwind( dispatch.ControlPc, &got_info, &dispatch.EstablisherFrame, &context,
+                                                   &dispatch.LanguageHandler, &dispatch.HandlerData );
+                if (status != STATUS_SUCCESS) return status;
+            }
+#endif
+
+            if (got_info)
+            {
+                dispatch.FunctionEntry = NULL;
+                if (dispatch.LanguageHandler && !module)
+                {
+                    FIXME( "calling personality routine in system library not supported yet\n" );
+                    dispatch.LanguageHandler = NULL;
+                }
+                goto unwind_done;
+            }
+        }
+        else WARN( "exception data not found in %s\n", debugstr_w(module->BaseDllName.Buffer) );
+
+        context.Rip = *(ULONG64 *)context.Rsp;
+        context.Rsp = context.Rsp + sizeof(ULONG64);
+        dispatch.EstablisherFrame = context.Rsp;
+        dispatch.LanguageHandler = NULL;
+
+    unwind_done:
+        if (!dispatch.EstablisherFrame) break;
+
+        if ((dispatch.EstablisherFrame & 7) ||
+            dispatch.EstablisherFrame < (ULONG64)NtCurrentTeb()->Tib.StackLimit ||
+            dispatch.EstablisherFrame > (ULONG64)NtCurrentTeb()->Tib.StackBase)
+        {
+            ERR( "invalid frame %lx (%p-%p)\n", dispatch.EstablisherFrame,
+                 NtCurrentTeb()->Tib.StackLimit, NtCurrentTeb()->Tib.StackBase );
+            rec->ExceptionFlags |= EH_STACK_INVALID;
+            break;
+        }
+
+        if (dispatch.LanguageHandler)
+        {
+            switch (call_handler( rec, orig_context, &dispatch ))
+            {
+            case ExceptionContinueExecution:
+                if (rec->ExceptionFlags & EH_NONCONTINUABLE) return STATUS_NONCONTINUABLE_EXCEPTION;
+                return STATUS_SUCCESS;
+            case ExceptionContinueSearch:
+                break;
+            case ExceptionNestedException:
+                FIXME( "nested exception\n" );
+                break;
+            case ExceptionCollidedUnwind: {
+                ULONG64 frame;
+
+                context = *dispatch.ContextRecord;
+                dispatch.ContextRecord = &context;
+                RtlVirtualUnwind( UNW_FLAG_NHANDLER, dispatch.ImageBase,
+                        dispatch.ControlPc, dispatch.FunctionEntry,
+                        &context, NULL, &frame, NULL );
+                goto unwind_done;
+            }
+            default:
+                return STATUS_INVALID_DISPOSITION;
+            }
+        }
+        /* hack: call wine handlers registered in the tib list */
+        else while ((ULONG64)teb_frame < context.Rsp)
+        {
+            TRACE( "found wine frame %p rsp %lx handler %p\n",
+                    teb_frame, context.Rsp, teb_frame->Handler );
+            dispatch.EstablisherFrame = (ULONG64)teb_frame;
+            switch (call_teb_handler( rec, orig_context, &dispatch, teb_frame ))
+            {
+            case ExceptionContinueExecution:
+                if (rec->ExceptionFlags & EH_NONCONTINUABLE) return STATUS_NONCONTINUABLE_EXCEPTION;
+                return STATUS_SUCCESS;
+            case ExceptionContinueSearch:
+                break;
+            case ExceptionNestedException:
+                FIXME( "nested exception\n" );
+                break;
+            case ExceptionCollidedUnwind: {
+                ULONG64 frame;
+
+                context = *dispatch.ContextRecord;
+                dispatch.ContextRecord = &context;
+                RtlVirtualUnwind( UNW_FLAG_NHANDLER, dispatch.ImageBase,
+                        dispatch.ControlPc, dispatch.FunctionEntry,
+                        &context, NULL, &frame, NULL );
+                teb_frame = teb_frame->Prev;
+                goto unwind_done;
+            }
+            default:
+                return STATUS_INVALID_DISPOSITION;
+            }
+            teb_frame = teb_frame->Prev;
+        }
+
+        if (context.Rsp == (ULONG64)NtCurrentTeb()->Tib.StackBase) break;
+    }
+    return STATUS_UNHANDLED_EXCEPTION;
+}
+
+
+/*******************************************************************
+ *		NtRaiseException (NTDLL.@)
+ */
+NTSTATUS WINAPI NtRaiseException( EXCEPTION_RECORD *rec, CONTEXT *context, BOOL first_chance )
+{
+    NTSTATUS status;
+
+    if (first_chance)
+    {
+        DWORD c;
+
+        TRACE( "code=%x flags=%x addr=%p ip=%lx tid=%04x\n",
+               rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress,
+               context->Rip, GetCurrentThreadId() );
+        for (c = 0; c < min( EXCEPTION_MAXIMUM_PARAMETERS, rec->NumberParameters ); c++)
+            TRACE( " info[%d]=%016lx\n", c, rec->ExceptionInformation[c] );
+        if (rec->ExceptionCode == EXCEPTION_WINE_STUB)
+        {
+            if (rec->ExceptionInformation[1] >> 16)
+                MESSAGE( "wine: Call from %p to unimplemented function %s.%s, aborting\n",
+                         rec->ExceptionAddress,
+                         (char*)rec->ExceptionInformation[0], (char*)rec->ExceptionInformation[1] );
+            else
+                MESSAGE( "wine: Call from %p to unimplemented function %s.%ld, aborting\n",
+                         rec->ExceptionAddress,
+                         (char*)rec->ExceptionInformation[0], rec->ExceptionInformation[1] );
+        }
+        else
+        {
+            TRACE(" rax=%016lx rbx=%016lx rcx=%016lx rdx=%016lx\n",
+                  context->Rax, context->Rbx, context->Rcx, context->Rdx );
+            TRACE(" rsi=%016lx rdi=%016lx rbp=%016lx rsp=%016lx\n",
+                  context->Rsi, context->Rdi, context->Rbp, context->Rsp );
+            TRACE("  r8=%016lx  r9=%016lx r10=%016lx r11=%016lx\n",
+                  context->R8, context->R9, context->R10, context->R11 );
+            TRACE(" r12=%016lx r13=%016lx r14=%016lx r15=%016lx\n",
+                  context->R12, context->R13, context->R14, context->R15 );
+        }
+        status = send_debug_event( rec, TRUE, context );
+        if (status == DBG_CONTINUE || status == DBG_EXCEPTION_HANDLED) goto done;
+
+        /* fix up instruction pointer in context for EXCEPTION_BREAKPOINT */
+        if (rec->ExceptionCode == EXCEPTION_BREAKPOINT) context->Rip--;
+
+        if (call_vectored_handlers( rec, context ) == EXCEPTION_CONTINUE_EXECUTION) goto done;
+
+        if ((status = call_stack_handlers( rec, context )) == STATUS_SUCCESS) goto done;
+        if (status != STATUS_UNHANDLED_EXCEPTION) return status;
+    }
+
+    /* last chance exception */
+
+    status = send_debug_event( rec, FALSE, context );
+    if (status != DBG_CONTINUE)
+    {
+        if (rec->ExceptionFlags & EH_STACK_INVALID)
+            ERR("Exception frame is not in stack limits => unable to dispatch exception.\n");
+        else if (rec->ExceptionCode == STATUS_NONCONTINUABLE_EXCEPTION)
+            ERR("Process attempted to continue execution after noncontinuable exception.\n");
+        else
+            ERR("Unhandled exception code %x flags %x addr %p\n",
+                rec->ExceptionCode, rec->ExceptionFlags, rec->ExceptionAddress );
+        NtTerminateProcess( NtCurrentProcess(), rec->ExceptionCode );
+    }
+
+done:
+    return NtSetContextThread( GetCurrentThread(), context );
+}
+
+
+/**********************************************************************
+ *		raise_segv_exception
+ */
+static void raise_segv_exception( EXCEPTION_RECORD *rec, CONTEXT *context )
+{
+    NTSTATUS status;
+
+    switch(rec->ExceptionCode)
+    {
+    case EXCEPTION_ACCESS_VIOLATION:
+        if (rec->NumberParameters == 2)
+        {
+            if (!(rec->ExceptionCode = virtual_handle_fault( (void *)rec->ExceptionInformation[1],
+                                                             rec->ExceptionInformation[0], FALSE )))
+                set_cpu_context( context );
+        }
+        break;
+    case EXCEPTION_BREAKPOINT:
+        switch (rec->ExceptionInformation[0])
+        {
+            case 1: /* BREAKPOINT_PRINT */
+            case 3: /* BREAKPOINT_LOAD_SYMBOLS */
+            case 4: /* BREAKPOINT_UNLOAD_SYMBOLS */
+            case 5: /* BREAKPOINT_COMMAND_STRING (>= Win2003) */
+                set_cpu_context( context );
+        }
+        break;
+    }
+    status = NtRaiseException( rec, context, TRUE );
+    raise_status( status, rec );
+}
+
+
+/**********************************************************************
+ *		raise_trap_exception
+ */
+static void raise_trap_exception( EXCEPTION_RECORD *rec, CONTEXT *context )
+{
+    NTSTATUS status;
+
+    if (rec->ExceptionCode == EXCEPTION_SINGLE_STEP)
+    {
+        /* when single stepping can't tell whether this is a hw bp or a
+         * single step interrupt. try to avoid as much overhead as possible
+         * and only do a server call if there is any hw bp enabled. */
+
+        if( !(context->EFlags & 0x100) || (amd64_thread_data()->dr7 & 0xff) )
+        {
+            /* (possible) hardware breakpoint, fetch the debug registers */
+            DWORD saved_flags = context->ContextFlags;
+            context->ContextFlags = CONTEXT_DEBUG_REGISTERS;
+            NtGetContextThread(GetCurrentThread(), context);
+            context->ContextFlags |= saved_flags;  /* restore flags */
+        }
+
+        context->EFlags &= ~0x100;  /* clear single-step flag */
+    }
+
+    status = NtRaiseException( rec, context, TRUE );
+    raise_status( status, rec );
+}
+
+
+/**********************************************************************
+ *		raise_generic_exception
+ *
+ * Generic raise function for exceptions that don't need special treatment.
+ */
+static void raise_generic_exception( EXCEPTION_RECORD *rec, CONTEXT *context )
+{
+    NTSTATUS status = NtRaiseException( rec, context, TRUE );
+    raise_status( status, rec );
+}
+
+
+/***********************************************************************
+ *           is_privileged_instr
+ *
+ * Check if the fault location is a privileged instruction.
+ */
+static inline DWORD is_privileged_instr( CONTEXT *context )
+{
+    const BYTE *instr = (BYTE *)context->Rip;
+    unsigned int prefix_count = 0;
+
+    for (;;) switch(*instr)
+    {
+    /* instruction prefixes */
+    case 0x2e:  /* %cs: */
+    case 0x36:  /* %ss: */
+    case 0x3e:  /* %ds: */
+    case 0x26:  /* %es: */
+    case 0x40:  /* rex */
+    case 0x41:  /* rex */
+    case 0x42:  /* rex */
+    case 0x43:  /* rex */
+    case 0x44:  /* rex */
+    case 0x45:  /* rex */
+    case 0x46:  /* rex */
+    case 0x47:  /* rex */
+    case 0x48:  /* rex */
+    case 0x49:  /* rex */
+    case 0x4a:  /* rex */
+    case 0x4b:  /* rex */
+    case 0x4c:  /* rex */
+    case 0x4d:  /* rex */
+    case 0x4e:  /* rex */
+    case 0x4f:  /* rex */
+    case 0x64:  /* %fs: */
+    case 0x65:  /* %gs: */
+    case 0x66:  /* opcode size */
+    case 0x67:  /* addr size */
+    case 0xf0:  /* lock */
+    case 0xf2:  /* repne */
+    case 0xf3:  /* repe */
+        if (++prefix_count >= 15) return EXCEPTION_ILLEGAL_INSTRUCTION;
+        instr++;
+        continue;
+
+    case 0x0f: /* extended instruction */
+        switch(instr[1])
+        {
+        case 0x06: /* clts */
+        case 0x08: /* invd */
+        case 0x09: /* wbinvd */
+        case 0x20: /* mov crX, reg */
+        case 0x21: /* mov drX, reg */
+        case 0x22: /* mov reg, crX */
+        case 0x23: /* mov reg drX */
+            return EXCEPTION_PRIV_INSTRUCTION;
+        }
+        return 0;
+    case 0x6c: /* insb (%dx) */
+    case 0x6d: /* insl (%dx) */
+    case 0x6e: /* outsb (%dx) */
+    case 0x6f: /* outsl (%dx) */
+    case 0xcd: /* int $xx */
+    case 0xe4: /* inb al,XX */
+    case 0xe5: /* in (e)ax,XX */
+    case 0xe6: /* outb XX,al */
+    case 0xe7: /* out XX,(e)ax */
+    case 0xec: /* inb (%dx),%al */
+    case 0xed: /* inl (%dx),%eax */
+    case 0xee: /* outb %al,(%dx) */
+    case 0xef: /* outl %eax,(%dx) */
+    case 0xf4: /* hlt */
+    case 0xfa: /* cli */
+    case 0xfb: /* sti */
+        return EXCEPTION_PRIV_INSTRUCTION;
+    default:
+        return 0;
+    }
+}
+
+
+/***********************************************************************
+ *           handle_interrupt
+ *
+ * Handle an interrupt.
+ */
+static inline BOOL handle_interrupt( unsigned int interrupt, EXCEPTION_RECORD *rec, CONTEXT *context )
+{
+    switch(interrupt)
+    {
+    case 0x2c:
+        rec->ExceptionCode = STATUS_ASSERTION_FAILURE;
+        return TRUE;
+    case 0x2d:
+        context->Rip += 3;
+        rec->ExceptionCode = EXCEPTION_BREAKPOINT;
+        rec->ExceptionAddress = (void *)context->Rip;
+        rec->NumberParameters = 1;
+        rec->ExceptionInformation[0] = context->Rax;
+        return TRUE;
+    default:
+        return FALSE;
+    }
+}
+
+DWORD mapping_tls_index;
+static int is_winedevice_stored = -1;
+static int is_winedevice(void)
+{
+    if(is_winedevice_stored != -1) return is_winedevice_stored;
+    /* detect whether we are 64-bit winedevice */
+    UNICODE_STRING winedeviceUS;
+    static const WCHAR winedeviceW[] = {'C',':','\\','w','i','n','d','o','w','s','\\','s','y','s','t','e','m','3','2','\\','w','i','n','e','d','e','v','i','c','e','.','e','x','e',0};
+
+    RtlCreateUnicodeString(&winedeviceUS, winedeviceW);
+
+    is_winedevice_stored = !RtlCompareUnicodeString(&winedeviceUS, &NtCurrentTeb()->Peb->ProcessParameters->ImagePathName, TRUE);
+    return is_winedevice_stored;
+}
+
+
+static int map_userspace(siginfo_t *siginfo, ucontext_t *sigcontext, HANDLE process)
+{
+    void *fault_addr;
+    void *page_addr;
+    SIZE_T bytes_read;
+    NTSTATUS stat;
+
+    fault_addr = siginfo->si_addr;
+
+    if(fault_addr < (void*) 0x0000FFFF)
+    {
+        /* probably a null pointer issue */
+        return 0;
+    }
+
+    FIXME("trying to access address %p in \"user-space\"\n", fault_addr);
+
+    /* if the access is read, we don't handle this */
+    if(ERROR_sig(sigcontext) & 0x2)
+    {
+        FIXME("we don't handle write operations\n");
+        return 0;
+    }
+
+    if(!process)
+    {
+        FIXME("no user-space process known\n");
+        return 0;
+    }
+
+    /* round down the address to a page*/
+    page_addr = fault_addr - ((long) fault_addr % getpagesize());
+
+    /* map the memory*/
+    if(page_addr != mmap(page_addr, getpagesize() * 2, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0))
+    {
+        FIXME("unable to map memory for user-space access\n");
+        return 0;
+    }
+
+    /* read the memory from the desired process into our map, 32 is the maximum bytes read by one instruction */
+    stat = NtReadVirtualMemory(process, fault_addr, fault_addr, 32, &bytes_read);
+
+    if(stat || !bytes_read)
+    {
+        /* try again, read one byte this time*/
+        stat = NtReadVirtualMemory(process, fault_addr, fault_addr, 1, &bytes_read);
+
+        if(stat || !bytes_read)
+        {
+            FIXME("Unable to read memory from user space stat=%u bytes_read=%lu", stat, bytes_read);
+            munmap(page_addr, getpagesize() * 2);
+            return 0;
+        }
+    }
+
+    /* enable tracing so we unmap after instruction */
+    sigcontext->uc_mcontext.gregs[REG_EFL] |= 0x100;
+
+    NtCurrentTeb()->TlsSlots[mapping_tls_index] = page_addr;
+
+    return 1;
+}
+
+
+/**********************************************************************
+ *		segv_handler
+ *
+ * Handler for SIGSEGV and related errors.
+ */
+static void segv_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+{
+    EXCEPTION_RECORD *rec;
+    ucontext_t *ucontext = sigcontext;
+
+    if(is_winedevice() && TRAP_sig(ucontext) == TRAP_x86_PAGEFLT)
+    {
+      /* see if we can access user space address */
+      if(map_userspace(siginfo, ucontext, (HANDLE)(ULONGLONG) NtCurrentTeb()->Peb->Reserved[0]))
+        return;
+    }
+
+    /* check for page fault inside the thread stack */
+    if (TRAP_sig(ucontext) == TRAP_x86_PAGEFLT &&
+        (char *)siginfo->si_addr >= (char *)NtCurrentTeb()->DeallocationStack &&
+        (char *)siginfo->si_addr < (char *)NtCurrentTeb()->Tib.StackBase &&
+        virtual_handle_stack_fault( siginfo->si_addr ))
+    {
+        /* check if this was the last guard page */
+        if ((char *)siginfo->si_addr < (char *)NtCurrentTeb()->DeallocationStack + 2*4096)
+        {
+            rec = setup_exception( sigcontext, raise_segv_exception );
+            rec->ExceptionCode = EXCEPTION_STACK_OVERFLOW;
+        }
+        return;
+    }
+
+    rec = setup_exception( sigcontext, raise_segv_exception );
+    if (rec->ExceptionCode == EXCEPTION_STACK_OVERFLOW) return;
+
+    switch(TRAP_sig(ucontext))
+    {
+    case TRAP_x86_OFLOW:   /* Overflow exception */
+        rec->ExceptionCode = EXCEPTION_INT_OVERFLOW;
+        break;
+    case TRAP_x86_BOUND:   /* Bound range exception */
+        rec->ExceptionCode = EXCEPTION_ARRAY_BOUNDS_EXCEEDED;
+        break;
+    case TRAP_x86_PRIVINFLT:   /* Invalid opcode exception */
+        rec->ExceptionCode = EXCEPTION_ILLEGAL_INSTRUCTION;
+        break;
+    case TRAP_x86_STKFLT:  /* Stack fault */
+        rec->ExceptionCode = EXCEPTION_STACK_OVERFLOW;
+        break;
+    case TRAP_x86_SEGNPFLT:  /* Segment not present exception */
+    case TRAP_x86_PROTFLT:   /* General protection fault */
+    case TRAP_x86_UNKNOWN:   /* Unknown fault code */
+        {
+            CONTEXT *win_context = get_exception_context( rec );
+            WORD err = ERROR_sig(ucontext);
+            if (!err && (rec->ExceptionCode = is_privileged_instr( win_context ))) break;
+            if ((err & 7) == 2 && handle_interrupt( err >> 3, rec, win_context )) break;
+            rec->ExceptionCode = EXCEPTION_ACCESS_VIOLATION;
+            rec->NumberParameters = 2;
+            rec->ExceptionInformation[0] = 0;
+            rec->ExceptionInformation[1] = 0xffffffffffffffff;
+        }
+        break;
+    case TRAP_x86_PAGEFLT:  /* Page fault */
+        rec->ExceptionCode = EXCEPTION_ACCESS_VIOLATION;
+        rec->NumberParameters = 2;
+        rec->ExceptionInformation[0] = (ERROR_sig(ucontext) >> 1) & 0x09;
+        rec->ExceptionInformation[1] = (ULONG_PTR)siginfo->si_addr;
+        break;
+    case TRAP_x86_ALIGNFLT:  /* Alignment check exception */
+        rec->ExceptionCode = EXCEPTION_DATATYPE_MISALIGNMENT;
+        break;
+    default:
+        ERR( "Got unexpected trap %ld\n", (ULONG_PTR)TRAP_sig(ucontext) );
+        /* fall through */
+    case TRAP_x86_NMI:       /* NMI interrupt */
+    case TRAP_x86_DNA:       /* Device not available exception */
+    case TRAP_x86_DOUBLEFLT: /* Double fault exception */
+    case TRAP_x86_TSSFLT:    /* Invalid TSS exception */
+    case TRAP_x86_MCHK:      /* Machine check exception */
+    case TRAP_x86_CACHEFLT:  /* Cache flush exception */
+        rec->ExceptionCode = EXCEPTION_ILLEGAL_INSTRUCTION;
+        break;
+    }
+}
+
+static int unmap_userspace(siginfo_t *siginfo, void *sigcontext)
+{
+    ucontext_t *ucontext;
+    void *mapping;
+
+    ucontext = (ucontext_t *) sigcontext;
+    mapping = NtCurrentTeb()->TlsSlots[mapping_tls_index];
+
+    /* TODO: validate instruction pointer */
+    if(!mapping) return 1;
+
+    if(munmap(mapping, getpagesize() * 2))
+    {
+        FIXME("unmap unsuccessful");
+    }
+
+    ucontext->uc_mcontext.gregs[REG_EFL] &= 0xFFFFFEFF;
+
+    NtCurrentTeb()->TlsSlots[mapping_tls_index] = 0;
+
+    return 1;
+}
+
+/**********************************************************************
+ *		trap_handler
+ *
+ * Handler for SIGTRAP.
+ */
+static void trap_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+{
+    EXCEPTION_RECORD *rec;
+
+    if(siginfo->si_code == TRAP_TRACE && is_winedevice() && unmap_userspace(siginfo, sigcontext)) return;
+
+    rec = setup_exception( sigcontext, raise_trap_exception );
+
+    switch (siginfo->si_code)
+    {
+    case TRAP_TRACE:  /* Single-step exception */
+    case 4 /* TRAP_HWBKPT */: /* Hardware breakpoint exception */
+        rec->ExceptionCode = EXCEPTION_SINGLE_STEP;
+        break;
+    case TRAP_BRKPT:   /* Breakpoint exception */
+        /* Check if this is actuallly icebp instruction */
+        if (((unsigned char *)rec->ExceptionAddress)[-1] == 0xF1)
+        {
+            rec->ExceptionCode = EXCEPTION_SINGLE_STEP;
+            break;
+        }
+        rec->ExceptionAddress = (char *)rec->ExceptionAddress - 1;  /* back up over the int3 instruction */
+        /* fall through */
+    default:
+        rec->ExceptionCode = EXCEPTION_BREAKPOINT;
+        rec->NumberParameters = 1;
+        rec->ExceptionInformation[0] = 0;
+        break;
+    }
+}
+
+/**********************************************************************
+ *		fpe_handler
+ *
+ * Handler for SIGFPE.
+ */
+static void fpe_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+{
+    EXCEPTION_RECORD *rec = setup_exception( sigcontext, raise_generic_exception );
+
+    switch (siginfo->si_code)
+    {
+    case FPE_FLTSUB:
+        rec->ExceptionCode = EXCEPTION_ARRAY_BOUNDS_EXCEEDED;
+        break;
+    case FPE_INTDIV:
+        rec->ExceptionCode = EXCEPTION_INT_DIVIDE_BY_ZERO;
+        break;
+    case FPE_INTOVF:
+        rec->ExceptionCode = EXCEPTION_INT_OVERFLOW;
+        break;
+    case FPE_FLTDIV:
+        rec->ExceptionCode = EXCEPTION_FLT_DIVIDE_BY_ZERO;
+        break;
+    case FPE_FLTOVF:
+        rec->ExceptionCode = EXCEPTION_FLT_OVERFLOW;
+        break;
+    case FPE_FLTUND:
+        rec->ExceptionCode = EXCEPTION_FLT_UNDERFLOW;
+        break;
+    case FPE_FLTRES:
+        rec->ExceptionCode = EXCEPTION_FLT_INEXACT_RESULT;
+        break;
+    case FPE_FLTINV:
+    default:
+        rec->ExceptionCode = EXCEPTION_FLT_INVALID_OPERATION;
+        break;
+    }
+}
+
+/**********************************************************************
+ *		int_handler
+ *
+ * Handler for SIGINT.
+ */
+static void int_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+{
+    if (!dispatch_signal(SIGINT))
+    {
+        EXCEPTION_RECORD *rec = setup_exception( sigcontext, raise_generic_exception );
+        rec->ExceptionCode = CONTROL_C_EXIT;
+    }
+}
+
+
+/**********************************************************************
+ *		abrt_handler
+ *
+ * Handler for SIGABRT.
+ */
+static void abrt_handler( int signal, siginfo_t *siginfo, void *sigcontext )
+{
+    EXCEPTION_RECORD *rec = setup_exception( sigcontext, raise_generic_exception );
+    rec->ExceptionCode = EXCEPTION_WINE_ASSERTION;
+    rec->ExceptionFlags = EH_NONCONTINUABLE;
+}
+
+
+/**********************************************************************
+ *		quit_handler
+ *
+ * Handler for SIGQUIT.
+ */
+static void quit_handler( int signal, siginfo_t *siginfo, void *ucontext )
+{
+    abort_thread(0);
+}
+
+
+/**********************************************************************
+ *		usr1_handler
+ *
+ * Handler for SIGUSR1, used to signal a thread that it got suspended.
+ */
+static void usr1_handler( int signal, siginfo_t *siginfo, void *ucontext )
+{
+    CONTEXT context;
+
+    save_context( &context, ucontext );
+    wait_suspend( &context );
+    restore_context( &context, ucontext );
+}
+
+
+/***********************************************************************
+ *           __wine_set_signal_handler   (NTDLL.@)
+ */
+int CDECL __wine_set_signal_handler(unsigned int sig, wine_signal_handler wsh)
+{
+    if (sig >= ARRAY_SIZE(handlers)) return -1;
+    if (handlers[sig] != NULL) return -2;
+    handlers[sig] = wsh;
+    return 0;
+}
+
+
+/**********************************************************************
+ *		signal_alloc_thread
+ */
+NTSTATUS signal_alloc_thread( TEB **teb )
+{
+    static size_t sigstack_zero_bits;
+    SIZE_T size;
+    NTSTATUS status;
+
+    if (!sigstack_zero_bits)
+    {
+        size_t min_size = teb_size + max( MINSIGSTKSZ, 8192 );
+        /* find the first power of two not smaller than min_size */
+        sigstack_zero_bits = 12;
+        while ((1u << sigstack_zero_bits) < min_size) sigstack_zero_bits++;
+        signal_stack_size = (1 << sigstack_zero_bits) - teb_size;
+        assert( sizeof(TEB) <= teb_size );
+    }
+
+    size = 1 << sigstack_zero_bits;
+    *teb = NULL;
+    if (!(status = NtAllocateVirtualMemory( NtCurrentProcess(), (void **)teb, sigstack_zero_bits,
+                                            &size, MEM_COMMIT | MEM_TOP_DOWN, PAGE_READWRITE )))
+    {
+        (*teb)->Tib.Self = &(*teb)->Tib;
+        (*teb)->Tib.ExceptionList = (void *)~0UL;
+    }
+    return status;
+}
+
+
+/**********************************************************************
+ *		signal_free_thread
+ */
+void signal_free_thread( TEB *teb )
+{
+    SIZE_T size = 0;
+
+    NtFreeVirtualMemory( NtCurrentProcess(), (void **)&teb, &size, MEM_RELEASE );
+}
+
+#ifdef __APPLE__
+/**********************************************************************
+ *		mac_thread_gsbase
+ */
+static void *mac_thread_gsbase(void)
+{
+    static int gsbase_offset = -1;
+    void *ret;
+
+    if (gsbase_offset < 0)
+    {
+        /* Search for the array of TLS slots within the pthread data structure.
+           That's what the macOS pthread implementation uses for gsbase. */
+        const void* const sentinel1 = (const void*)0x2bffb6b4f11228ae;
+        const void* const sentinel2 = (const void*)0x0845a7ff6ab76707;
+        int rc;
+        pthread_key_t key;
+        const void** p = (const void**)pthread_self();
+        int i;
+
+        gsbase_offset = 0;
+        if ((rc = pthread_key_create(&key, NULL)))
+        {
+            ERR("failed to create sentinel key for gsbase search: %d\n", rc);
+            return NULL;
+        }
+
+        pthread_setspecific(key, sentinel1);
+
+        for (i = key + 1; i < 2000; i++) /* arbitrary limit */
+        {
+            if (p[i] == sentinel1)
+            {
+                pthread_setspecific(key, sentinel2);
+
+                if (p[i] == sentinel2)
+                {
+                    gsbase_offset = (i - key) * sizeof(*p);
+                    break;
+                }
+
+                pthread_setspecific(key, sentinel1);
+            }
+        }
+
+        pthread_key_delete(key);
+    }
+
+    if (gsbase_offset)
+    {
+        ret = (char*)pthread_self() + gsbase_offset;
+        TRACE("pthread_self() %p + offset 0x%08x -> gsbase %p\n", pthread_self(), gsbase_offset, ret);
+    }
+    else
+    {
+        ret = NULL;
+        ERR("failed to locate gsbase; won't be able to poke ThreadLocalStoragePointer into pthread TLS; expect crashes\n");
+    }
+
+    return ret;
+}
+#endif
+
+
+/**********************************************************************
+ *		signal_init_thread
+ */
+void signal_init_thread( TEB *teb )
+{
+    const WORD fpu_cw = 0x27f;
+    stack_t ss;
+
+#if defined __linux__
+    arch_prctl( ARCH_SET_GS, teb );
+#elif defined (__FreeBSD__) || defined (__FreeBSD_kernel__)
+    amd64_set_gsbase( teb );
+#elif defined(__NetBSD__)
+    sysarch( X86_64_SET_GSBASE, &teb );
+#elif defined (__APPLE__)
+    __asm__ volatile (".byte 0x65\n\tmovq %0,%c1"
+                      :
+                      : "r" (teb->Tib.Self), "n" (FIELD_OFFSET(TEB, Tib.Self)));
+    __asm__ volatile (".byte 0x65\n\tmovq %0,%c1"
+                      :
+                      : "r" (teb->ThreadLocalStoragePointer), "n" (FIELD_OFFSET(TEB, ThreadLocalStoragePointer)));
+
+    /* alloc_tls_slot() needs to poke a value to an address relative to each
+       thread's gsbase.  Have each thread record its gsbase pointer into its
+       TEB so alloc_tls_slot() can find it. */
+    teb->Reserved5[0] = mac_thread_gsbase();
+#else
+# error Please define setting %gs for your architecture
+#endif
+
+    ss.ss_sp    = (char *)teb + teb_size;
+    ss.ss_size  = signal_stack_size;
+    ss.ss_flags = 0;
+    if (sigaltstack(&ss, NULL) == -1) perror( "sigaltstack" );
+
+#ifdef __GNUC__
+    __asm__ volatile ("fninit; fldcw %0" : : "m" (fpu_cw));
+#else
+    FIXME("FPU setup not implemented for this platform.\n");
+#endif
+}
+
+/**********************************************************************
+ *		signal_init_process
+ */
+void signal_init_process(void)
+{
+    struct sigaction sig_act;
+
+    sig_act.sa_mask = server_block_set;
+    sig_act.sa_flags = SA_RESTART | SA_SIGINFO | SA_ONSTACK;
+
+    sig_act.sa_sigaction = int_handler;
+    if (sigaction( SIGINT, &sig_act, NULL ) == -1) goto error;
+    sig_act.sa_sigaction = fpe_handler;
+    if (sigaction( SIGFPE, &sig_act, NULL ) == -1) goto error;
+    sig_act.sa_sigaction = abrt_handler;
+    if (sigaction( SIGABRT, &sig_act, NULL ) == -1) goto error;
+    sig_act.sa_sigaction = quit_handler;
+    if (sigaction( SIGQUIT, &sig_act, NULL ) == -1) goto error;
+    sig_act.sa_sigaction = usr1_handler;
+    if (sigaction( SIGUSR1, &sig_act, NULL ) == -1) goto error;
+
+    sig_act.sa_sigaction = segv_handler;
+    if (sigaction( SIGSEGV, &sig_act, NULL ) == -1) goto error;
+    if (sigaction( SIGILL, &sig_act, NULL ) == -1) goto error;
+#ifdef SIGBUS
+    if (sigaction( SIGBUS, &sig_act, NULL ) == -1) goto error;
+#endif
+
+#ifdef SIGTRAP
+    sig_act.sa_sigaction = trap_handler;
+    if (sigaction( SIGTRAP, &sig_act, NULL ) == -1) goto error;
+#else
+    goto error;
+#endif
+
+    /* manually do what TlsAlloc does */
+    RtlAcquirePebLock();
+    mapping_tls_index = RtlFindClearBits( NtCurrentTeb()->Peb->TlsBitmap, 1, 1);
+    RtlReleasePebLock();
+    if(mapping_tls_index == ~0U) goto error;
+    NtCurrentTeb()->TlsSlots[mapping_tls_index] = 0;
+
+    return;
+
+ error:
+    perror("sigaction");
+    exit(1);
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 

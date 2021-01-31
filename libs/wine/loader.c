@@ -948,6 +948,170 @@ static void apple_main_thread( void (*init_func)(void) )
 #endif
 
 
+<<<<<<< HEAD
+=======
+#ifdef __ANDROID__
+
+#ifndef WINE_JAVA_CLASS
+#define WINE_JAVA_CLASS "org/winehq/wine/WineActivity"
+#endif
+
+static JavaVM *java_vm;
+static jobject java_object;
+
+/* return the Java VM that was used for JNI initialisation */
+JavaVM *wine_get_java_vm(void)
+{
+    return java_vm;
+}
+
+/* return the Java object that called the wine_init method */
+jobject wine_get_java_object(void)
+{
+    return java_object;
+}
+
+/* main Wine initialisation */
+static jstring wine_init_jni( JNIEnv *env, jobject obj, jobjectArray cmdline, jobjectArray environment )
+{
+    char **argv;
+    char *str;
+    char error[1024];
+    int i, argc, length;
+
+    /* get the command line array */
+
+    argc = (*env)->GetArrayLength( env, cmdline );
+    for (i = length = 0; i < argc; i++)
+    {
+        jobject str_obj = (*env)->GetObjectArrayElement( env, cmdline, i );
+        length += (*env)->GetStringUTFLength( env, str_obj ) + 1;
+    }
+
+    argv = malloc( (argc + 1) * sizeof(*argv) + length );
+    str = (char *)(argv + argc + 1);
+    for (i = 0; i < argc; i++)
+    {
+        jobject str_obj = (*env)->GetObjectArrayElement( env, cmdline, i );
+        length = (*env)->GetStringUTFLength( env, str_obj );
+        (*env)->GetStringUTFRegion( env, str_obj, 0,
+                                    (*env)->GetStringLength( env, str_obj ), str );
+        argv[i] = str;
+        str[length] = 0;
+        str += length + 1;
+    }
+    argv[argc] = NULL;
+
+    /* set the environment variables */
+
+    if (environment)
+    {
+        int count = (*env)->GetArrayLength( env, environment );
+        for (i = 0; i < count - 1; i += 2)
+        {
+            jobject var_obj = (*env)->GetObjectArrayElement( env, environment, i );
+            jobject val_obj = (*env)->GetObjectArrayElement( env, environment, i + 1 );
+            const char *var = (*env)->GetStringUTFChars( env, var_obj, NULL );
+
+            if (val_obj)
+            {
+                const char *val = (*env)->GetStringUTFChars( env, val_obj, NULL );
+                setenv( var, val, 1 );
+                if (!strcmp( var, "LD_LIBRARY_PATH" ))
+                {
+                    void (*update_func)( const char * ) = dlsym( RTLD_DEFAULT,
+                                                                 "android_update_LD_LIBRARY_PATH" );
+                    if (update_func) update_func( val );
+                }
+                else if (!strcmp( var, "WINEDEBUGLOG" ))
+                {
+                    int fd = open( val, O_WRONLY | O_CREAT | O_APPEND, 0666 );
+                    if (fd != -1)
+                    {
+                        dup2( fd, 2 );
+                        close( fd );
+                    }
+                }
+                (*env)->ReleaseStringUTFChars( env, val_obj, val );
+            }
+            else unsetenv( var );
+
+            (*env)->ReleaseStringUTFChars( env, var_obj, var );
+        }
+    }
+
+    java_object = (*env)->NewGlobalRef( env, obj );
+
+#ifdef __i386__
+    {
+        unsigned short java_fs = wine_get_fs();
+        wine_set_fs( 0 );
+        wine_init( argc, argv, error, sizeof(error) );
+        wine_set_fs( java_fs );
+    }
+#else
+    wine_init( argc, argv, error, sizeof(error) );
+#endif
+    return (*env)->NewStringUTF( env, error );
+}
+
+jint JNI_OnLoad( JavaVM *vm, void *reserved )
+{
+    static const JNINativeMethod method =
+    {
+        "wine_init", "([Ljava/lang/String;[Ljava/lang/String;)Ljava/lang/String;", wine_init_jni
+    };
+
+    JNIEnv *env;
+    jclass class;
+
+    java_vm = vm;
+    if ((*vm)->AttachCurrentThread( vm, &env, NULL ) != JNI_OK) return JNI_ERR;
+    if (!(class = (*env)->FindClass( env, WINE_JAVA_CLASS ))) return JNI_ERR;
+    (*env)->RegisterNatives( env, class, &method, 1 );
+    return JNI_VERSION_1_6;
+}
+
+#endif  /* __ANDROID__ */
+
+
+static inline int mmap_reserve( void *addr, size_t size )
+{
+    void *ptr;
+    int flags = MAP_PRIVATE | MAP_ANON | MAP_NORESERVE;
+
+#ifdef MAP_TRYFIXED
+    flags |= MAP_TRYFIXED;
+#endif
+    ptr = mmap( addr, size, PROT_NONE, flags, -1, 0 );
+    if (ptr != addr && ptr != (void *)-1)  munmap( ptr, size );
+    return (ptr == addr);
+}
+
+
+static inline void reserve_area( void *addr, void *end )
+{
+    size_t size = (char *)end - (char *)addr;
+
+
+    if (!size) return;
+
+    if (mmap_reserve( addr, size ))
+    {
+        wine_mmap_add_reserved_area( addr, size );
+        return;
+    }
+    size = (size / 2) & ~0xffff;
+    if (size)
+    {
+        reserve_area( addr, (char *)addr + size );
+        reserve_area( (char *)addr + size, end );
+    }
+    
+}
+
+
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 /***********************************************************************
  *           wine_init
  *
@@ -974,6 +1138,13 @@ void wine_init_obsolete( int argc, char *argv[], char *error, int error_size )
     __wine_main_argv = argv;
     __wine_main_environ = __wine_get_main_environment();
     mmap_init();
+
+    if(strcmp(__wine_main_argv[1], "C:\\windows\\system32\\winedevice.exe"))
+    {
+        reserve_area(0x7fffffff000, 0x7ffffffff000);
+    }else{
+        reserve_area(0x0, 0x7fffffff000);
+    }
 
     for (path = first_dll_path( "ntdll.dll", 0, &context ); path; path = next_dll_path( &context ))
     {

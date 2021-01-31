@@ -38,7 +38,10 @@
 #include "file.h"
 #include "handle.h"
 #include "request.h"
+#include "thread.h"
 #include "process.h"
+
+static struct list manager_list = LIST_INIT(manager_list);
 
 /* IRP object */
 
@@ -89,11 +92,21 @@ static const struct object_ops irp_call_ops =
 
 struct device_manager
 {
+<<<<<<< HEAD
     struct object          obj;            /* object header */
     struct list            devices;        /* list of devices */
     struct list            requests;       /* list of pending irps across all devices */
     struct irp_call       *current_call;   /* call currently executed on client side */
     struct wine_rb_tree    kernel_objects; /* map of objects that have client side pointer associated */
+=======
+    struct object          obj;           /* object header */
+    struct list            drivers;       /* list of drivers */
+    struct list            devices;       /* list of devices */
+    struct list            requests;      /* list of pending irps across all devices */
+    struct thread          *handler_thread;
+    client_ptr_t           event_handler;
+    struct list            global_entry;  /* entry in global manager list*/
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 };
 
 static void device_manager_dump( struct object *obj, int verbose );
@@ -125,11 +138,21 @@ static const struct object_ops device_manager_ops =
 };
 
 
+/* driver in client process, not an object */
+struct driver
+{
+    struct list entry;       /* entry in device manager list */
+    data_size_t path_len;    /* length of path string */
+    WCHAR *path;             /* path to .sys in DOS format */
+};
+
+
 /* device (a single device object) */
 
 struct device
 {
     struct object          obj;           /* object header */
+    struct namespace      *entries;       /* device's name space */
     struct device_manager *manager;       /* manager for this device (or NULL if deleted) */
     char                  *unix_path;     /* path to unix device if any */
     struct list            kernel_object; /* list of kernel object pointers */
@@ -144,7 +167,7 @@ static struct object *device_open_file( struct object *obj, unsigned int access,
                                         unsigned int sharing, unsigned int options );
 static struct list *device_get_kernel_obj_list( struct object *obj );
 
-static const struct object_ops device_ops =
+const struct object_ops device_ops =
 {
     sizeof(struct device),            /* size */
     device_dump,                      /* dump */
@@ -158,8 +181,12 @@ static const struct object_ops device_ops =
     default_fd_map_access,            /* map_access */
     default_get_sd,                   /* get_sd */
     default_set_sd,                   /* set_sd */
+<<<<<<< HEAD
     default_get_full_name,            /* get_full_name */
     no_lookup_name,                   /* lookup_name */
+=======
+    directory_lookup_name,            /* lookup_name */
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     directory_link_name,              /* link_name */
     default_unlink_name,              /* unlink_name */
     device_open_file,                 /* open_file */
@@ -697,8 +724,21 @@ static void device_file_reselect_async( struct fd *fd, struct async_queue *queue
     LIST_FOR_EACH_ENTRY( irp, &file->requests, struct irp_call, dev_entry )
         if (irp->iosb->status != STATUS_PENDING)
         {
+<<<<<<< HEAD
             cancel_irp_call( irp );
             return;
+=======
+            if (!(device->entries = create_namespace( DIR_HASH_SIZE )))
+	        {
+                release_object( device );
+		        return NULL;
+	        }
+            /* initialize it if it didn't already exist */
+            device->unix_path = NULL;
+            device->manager = manager;
+            list_add_tail( &manager->devices, &device->entry );
+            list_init( &device->files );
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         }
 }
 
@@ -728,6 +768,7 @@ struct object *create_unix_device( struct object *root, const struct unicode_str
     if ((device = create_named_object( root, &device_ops, name, attr, sd )))
     {
         device->unix_path = strdup( unix_path );
+        device->entries = NULL;
         device->manager = NULL;  /* no manager, requests go straight to the Unix device */
         list_init( &device->kernel_object );
         list_init( &device->files );
@@ -765,6 +806,11 @@ static void delete_device( struct device *device )
 
     unlink_named_object( &device->obj );
     list_remove( &device->entry );
+    if (device->entries)
+    {
+        free( device->entries );
+	    device->entries = NULL;
+    }
     device->manager = NULL;
     release_object( device );
 }
@@ -809,6 +855,7 @@ static void device_manager_destroy( struct object *obj )
         delete_device( device );
     }
 
+<<<<<<< HEAD
     while ((ptr = list_head( &manager->requests )))
     {
         struct irp_call *irp = LIST_ENTRY( ptr, struct irp_call, mgr_entry );
@@ -816,6 +863,9 @@ static void device_manager_destroy( struct object *obj )
         assert( !irp->file && !irp->async );
         release_object( irp );
     }
+=======
+    list_remove( &manager->global_entry );
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static struct device_manager *create_device_manager(void)
@@ -824,11 +874,22 @@ static struct device_manager *create_device_manager(void)
 
     if ((manager = alloc_object( &device_manager_ops )))
     {
+<<<<<<< HEAD
         manager->current_call = NULL;
         list_init( &manager->devices );
         list_init( &manager->requests );
         wine_rb_init( &manager->kernel_objects, compare_kernel_object );
+=======
+        list_init( &manager->drivers );
+        list_init( &manager->devices );
+        list_init( &manager->requests );
+        manager->event_handler = NULL;
+        manager->handler_thread = NULL;
+
+        list_add_tail( &manager_list, &manager->global_entry);
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     }
+
     return manager;
 }
 
@@ -873,6 +934,42 @@ DECL_HANDLER(create_device_manager)
         reply->handle = alloc_handle( current->process, manager, req->access, req->attributes );
         release_object( manager );
     }
+}
+
+
+/* add a driver */
+DECL_HANDLER(add_driver)
+{
+    struct driver *driver;
+    struct unicode_str path = get_req_unicode_str();
+    struct device_manager *manager;
+
+    if (!(manager = (struct device_manager *)get_handle_obj( current->process, req->manager,
+                                                             0, &device_manager_ops )))
+        return;
+    
+    driver = mem_alloc( sizeof(struct driver));
+
+    driver->path_len = path.len + 2;
+    driver->path = mem_alloc(path.len + 2);
+    memcpy(driver->path, path.str, path.len);
+    driver->path[path.len / 2] = 0;
+
+    list_add_tail( &manager->drivers, &driver->entry );
+
+    reply->driver = driver;
+
+    release_object(manager);
+}
+
+
+/* remove a driver */
+DECL_HANDLER(remove_driver)
+{
+    if(!req->driver)
+        return;
+    list_remove( &((struct driver *)(req->driver))->entry );
+    free( ((struct driver *)(req->driver)) );
 }
 
 
@@ -1021,6 +1118,7 @@ DECL_HANDLER(set_irp_result)
     }
 }
 
+<<<<<<< HEAD
 
 /* get kernel pointer from server object */
 DECL_HANDLER(get_kernel_object_ptr)
@@ -1111,10 +1209,168 @@ DECL_HANDLER(get_kernel_object_handle)
 {
     struct device_manager *manager;
     struct kernel_object *ref;
+=======
+/* enumerate all active drivers */
+DECL_HANDLER(enum_drivers)
+{
+    struct device_manager *cur_manager;
+    struct driver *cur_driver;
+    unsigned int index = 0;
+
+    LIST_FOR_EACH_ENTRY( cur_manager, &manager_list, struct device_manager, global_entry )
+    {
+        LIST_FOR_EACH_ENTRY( cur_driver, &cur_manager->drivers, struct driver, entry)
+        {
+            if(req->index > index++) continue;
+            reply->address = (client_ptr_t) cur_driver;
+            reply->next = index;
+            return;
+        }
+    }
+    
+    reply->next = index;
+    set_error( STATUS_NO_MORE_ENTRIES );
+}
+
+/* provide information about loaded driver */
+DECL_HANDLER( get_driver_info )
+{
+    struct driver *driver;
+
+    if(!req->driver)
+    {
+        set_error( STATUS_INVALID_PARAMETER );
+        return;
+    }
+
+    driver = (struct driver*)req->driver;
+
+    set_reply_data( driver->path, min( driver->path_len, get_reply_max_size() ) );
+}
+
+
+/* Driver event notification management */
+
+
+/* dispatch a create-process event to kernel environments */
+void dispatch_create_process_event( struct process *process )
+{
+    struct device_manager *cur_manager;
+
+    LIST_FOR_EACH_ENTRY( cur_manager, &manager_list, struct device_manager, global_entry)
+    {
+        apc_call_t event_apc;
+
+        /*process_handle = alloc_handle(cur_manager->handler_thread->process, process, PROCESS_QUERY_INFORMATION, 0);*/
+
+        event_apc.type = APC_USER;
+        event_apc.user.func = cur_manager->event_handler;
+        event_apc.user.args[0] = EVENT_TYPE_PROCESS_CREATE;
+        event_apc.user.args[1] = process->id;
+        event_apc.user.args[2] = process->parent_thread_id;
+
+        thread_queue_apc(NULL, cur_manager->handler_thread, NULL, &event_apc);
+    }
+}
+
+
+/* dispatch a destroy-process event to kernel environments */
+void dispatch_terminate_process_event( struct process * process)
+{
+    struct device_manager *cur_manager;
+
+    LIST_FOR_EACH_ENTRY( cur_manager, &manager_list, struct device_manager, global_entry)
+    {
+        apc_call_t event_apc;
+
+        /*process_handle = alloc_handle(cur_manager->handler_thread->process, process, PROCESS_QUERY_INFORMATION, 0);*/
+
+        event_apc.type = APC_USER;
+        event_apc.user.func = cur_manager->event_handler;
+        event_apc.user.args[0] = EVENT_TYPE_PROCESS_TERMINATE;
+        event_apc.user.args[1] = process->id;
+        event_apc.user.args[2] = 0;
+
+        thread_queue_apc(NULL, cur_manager->handler_thread, NULL, &event_apc);
+    }
+}
+
+
+/* dispatch a create-thread event to kernel environments */
+void dispatch_create_thread_event( struct thread *thread )
+{
+    struct device_manager *cur_manager;
+
+    LIST_FOR_EACH_ENTRY( cur_manager, &manager_list, struct device_manager, global_entry)
+    {
+        apc_call_t event_apc;
+
+        if(!cur_manager->handler_thread && !cur_manager->event_handler) continue;
+
+        event_apc.type = APC_USER;
+        event_apc.user.func = cur_manager->event_handler;
+        event_apc.user.args[0] = EVENT_TYPE_THREAD_TERMINATE;
+        event_apc.user.args[1] = thread->id;
+        event_apc.user.args[2] = thread->process->id;
+        
+        thread_queue_apc(NULL, cur_manager->handler_thread, NULL, &event_apc);
+    }
+}
+
+
+/* dispatch a destroy-thread event to kernel environments */
+/* we can't query information later, so send it both PID and TID*/
+void dispatch_terminate_thread_event( struct thread *thread )
+{
+    struct device_manager *cur_manager;
+
+    LIST_FOR_EACH_ENTRY( cur_manager, &manager_list, struct device_manager, global_entry)
+    {
+        apc_call_t event_apc;
+
+        event_apc.type = APC_USER;
+        event_apc.user.func = cur_manager->event_handler;
+        event_apc.user.args[0] = EVENT_TYPE_THREAD_TERMINATE;
+        event_apc.user.args[1] = thread->id;
+        event_apc.user.args[2] = thread->process->id;
+
+        thread_queue_apc(NULL, cur_manager->handler_thread, NULL, &event_apc);
+    }
+}
+
+
+/* dispatch a load-image event to kernel environments */
+void dispatch_load_image_event( struct process *process, mod_handle_t base )
+{
+        struct device_manager *cur_manager;
+
+    LIST_FOR_EACH_ENTRY( cur_manager, &manager_list, struct device_manager, global_entry)
+    {
+        apc_call_t event_apc;
+        obj_handle_t process_handle;
+
+        /*process_handle = alloc_handle(cur_manager->handler_thread->process, process, PROCESS_VM_READ | PROCESS_QUERY_INFORMATION, 0);*/
+
+        event_apc.type = APC_USER;
+        event_apc.user.func = cur_manager->event_handler;
+        event_apc.user.args[0] = EVENT_TYPE_LOAD_IMAGE;
+        event_apc.user.args[1] = process->id;
+        event_apc.user.args[2] = base;
+
+        thread_queue_apc(NULL, cur_manager->handler_thread, NULL, &event_apc);
+    }
+}
+
+/* register the ntoskrnl event handler */
+DECL_HANDLER( reg_device_event_handler )
+{
+    struct device_manager *manager;
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
     if (!(manager = (struct device_manager *)get_handle_obj( current->process, req->manager,
                                                              0, &device_manager_ops )))
         return;
+<<<<<<< HEAD
 
     if ((ref = kernel_object_from_ptr( manager, req->user_ptr )))
         reply->handle = alloc_handle( current->process, ref->object, req->access, 0 );
@@ -1123,3 +1379,11 @@ DECL_HANDLER(get_kernel_object_handle)
 
     release_object( manager );
 }
+=======
+    
+    manager->event_handler = req->event_handler;
+    manager->handler_thread = current;
+
+    release_object(manager);
+}
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9

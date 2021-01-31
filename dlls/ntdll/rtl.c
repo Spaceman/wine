@@ -765,6 +765,12 @@ ULONG WINAPI RtlRandom (PULONG seed)
 }
 
 
+ULONG WINAPI RtlRandomEx(PULONG seed)
+{
+    return RtlRandom(seed);
+}
+
+
 /*************************************************************************
  * RtlRandomEx   [NTDLL.@]
  */
@@ -2156,6 +2162,28 @@ void WINAPI RtlInsertElementGenericTableAvl(PRTL_AVL_TABLE table, void *buffer, 
     FIXME("%p %p %u %p: stub\n", table, buffer, size, element);
 }
 
+<<<<<<< HEAD
+=======
+typedef struct _RTL_UNLOAD_EVENT_TRACE
+{
+    PVOID BaseAddress;
+    SIZE_T SizeOfImage;
+    ULONG Sequence;
+    ULONG TimeDateStamp;
+    ULONG CheckSum;
+    WCHAR ImageName[32];
+} RTL_UNLOAD_EVENT_TRACE, *PRTL_UNLOAD_EVENT_TRACE;
+
+/*********************************************************************
+ *           RtlGetUnloadEventTrace [NTDLL.@]
+ */
+RTL_UNLOAD_EVENT_TRACE * WINAPI RtlGetUnloadEventTrace(void)
+{
+    FIXME("stub!\n");
+    return NULL;
+}
+
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 /*********************************************************************
  *           RtlQueryPackageIdentity [NTDLL.@]
  */

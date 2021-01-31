@@ -904,14 +904,18 @@
 @ stub PsGetProcessImageFileName
 @ stdcall PsGetProcessInheritedFromUniqueProcessId(ptr)
 @ stub PsGetProcessJob
-@ stub PsGetProcessPeb
+@ stdcall PsGetProcessPeb(ptr)
 @ stub PsGetProcessPriorityClass
 @ stdcall PsGetProcessSectionBaseAddress(ptr)
 @ stub PsGetProcessSecurityPort
 @ stub PsGetProcessSessionId
 @ stub PsGetProcessWin32Process
 @ stub PsGetProcessWin32WindowStation
+<<<<<<< HEAD
 @ stdcall -arch=x86_64 PsGetProcessWow64Process(ptr)
+=======
+@ stdcall PsGetProcessWow64Process(ptr)
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 @ stub PsGetThreadFreezeCount
 @ stub PsGetThreadHardErrorsAreDisabled
 @ stdcall PsGetThreadId(ptr)
@@ -930,7 +934,11 @@
 @ stub PsJobType
 @ stdcall PsLookupProcessByProcessId(ptr ptr)
 @ stub PsLookupProcessThreadByCid
+<<<<<<< HEAD
 @ stdcall PsLookupThreadByThreadId(ptr ptr)
+=======
+@ stub PsLookupThreadByThreadId
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 @ extern PsProcessType
 @ stub PsReferenceImpersonationToken
 @ stub PsReferencePrimaryToken

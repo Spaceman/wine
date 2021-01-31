@@ -1,7 +1,11 @@
 MODULE    = dxdiagn.dll
+<<<<<<< HEAD
 IMPORTS   = strmiids dxguid uuid d3d9 ddraw dsound version ole32 oleaut32 user32 advapi32
 
 EXTRADLLFLAGS = -mno-cygwin
+=======
+IMPORTS   = strmiids dxguid uuid d3d9 ddraw version ole32 oleaut32 user32 advapi32 psapi
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 C_SRCS = \
 	container.c \

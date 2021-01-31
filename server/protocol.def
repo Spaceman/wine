@@ -789,6 +789,7 @@ struct rawinput_device
     user_handle_t  target;
 };
 
+<<<<<<< HEAD
 typedef struct
 {
     int x;
@@ -797,6 +798,16 @@ typedef struct
     int __pad;
     lparam_t info;
 } cursor_pos_t;
+=======
+enum event_type
+{
+    EVENT_TYPE_PROCESS_CREATE,
+    EVENT_TYPE_PROCESS_TERMINATE,
+    EVENT_TYPE_THREAD_CREATE,
+    EVENT_TYPE_THREAD_TERMINATE,
+    EVENT_TYPE_LOAD_IMAGE
+};
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
 /****************************************************************/
 /* Request declarations */
@@ -3322,6 +3333,15 @@ struct handle_info
 @END
 
 
+/* Add a driver */
+@REQ(add_driver)
+    obj_handle_t manager;         /* device manager */
+    VARARG(path,unicode_str);     /* driver path */
+@REPLY
+    client_ptr_t driver;          /* server's opaque driver pointer */
+@END
+
+
 /* Create a device */
 @REQ(create_device)
     obj_handle_t rootdir;         /* root directory */
@@ -3331,10 +3351,33 @@ struct handle_info
 @END
 
 
+/* Remove a driver*/
+@REQ(remove_driver)
+    client_ptr_t driver;          /* server's opaque driver pointer */
+@END
+
+
 /* Delete a device */
 @REQ(delete_device)
     obj_handle_t manager;         /* handle to the device manager */
     client_ptr_t device;          /* pointer to the device */
+@END
+
+
+/* Enum active drivers */
+@REQ(enum_drivers)
+    unsigned int index;
+@REPLY
+    unsigned int next;
+    client_ptr_t address;
+@END
+
+
+/* Get information about a loaded driver */
+@REQ(get_driver_info)
+    client_ptr_t driver;
+@REPLY
+    VARARG(path,unicode_str);
 @END
 
 
@@ -3658,6 +3701,7 @@ struct handle_info
 @END
 
 
+<<<<<<< HEAD
 /* Suspend a process */
 @REQ(suspend_process)
     obj_handle_t handle;       /* process handle */
@@ -3668,3 +3712,10 @@ struct handle_info
 @REQ(resume_process)
     obj_handle_t handle;       /* process handle */
 @END
+=======
+/* Each winedevice has an event handler for global events */
+@REQ(reg_device_event_handler)
+    obj_handle_t manager;
+    client_ptr_t event_handler;
+@END
+>>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9

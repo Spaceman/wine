@@ -26,6 +26,7 @@
 #include "winbase.h"
 #include "winternl.h"
 #include "winioctl.h"
+#include "ntdddisk.h"
 #include "ntddstor.h"
 #include "ntddscsi.h"
 #include "ntddcdrm.h"
