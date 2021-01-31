@@ -715,10 +715,6 @@ static void device_file_reselect_async( struct fd *fd, struct async_queue *queue
     LIST_FOR_EACH_ENTRY( irp, &file->requests, struct irp_call, dev_entry )
         if (irp->iosb->status != STATUS_PENDING)
         {
-<<<<<<< HEAD
-            cancel_irp_call( irp );
-            return;
-=======
             if (!(device->entries = create_namespace( DIR_HASH_SIZE )))
 	        {
                 release_object( device );
@@ -729,7 +725,6 @@ static void device_file_reselect_async( struct fd *fd, struct async_queue *queue
             device->manager = manager;
             list_add_tail( &manager->devices, &device->entry );
             list_init( &device->files );
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
         }
 }
 
@@ -846,7 +841,6 @@ static void device_manager_destroy( struct object *obj )
         delete_device( device );
     }
 
-<<<<<<< HEAD
     while ((ptr = list_head( &manager->requests )))
     {
         struct irp_call *irp = LIST_ENTRY( ptr, struct irp_call, mgr_entry );
@@ -854,9 +848,7 @@ static void device_manager_destroy( struct object *obj )
         assert( !irp->file && !irp->async );
         release_object( irp );
     }
-=======
     list_remove( &manager->global_entry );
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 static struct device_manager *create_device_manager(void)
@@ -865,20 +857,15 @@ static struct device_manager *create_device_manager(void)
 
     if ((manager = alloc_object( &device_manager_ops )))
     {
-<<<<<<< HEAD
         manager->current_call = NULL;
         list_init( &manager->devices );
         list_init( &manager->requests );
         wine_rb_init( &manager->kernel_objects, compare_kernel_object );
-=======
         list_init( &manager->drivers );
-        list_init( &manager->devices );
-        list_init( &manager->requests );
         manager->event_handler = NULL;
         manager->handler_thread = NULL;
 
         list_add_tail( &manager_list, &manager->global_entry);
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     }
 
     return manager;
@@ -1109,8 +1096,6 @@ DECL_HANDLER(set_irp_result)
     }
 }
 
-<<<<<<< HEAD
-
 /* get kernel pointer from server object */
 DECL_HANDLER(get_kernel_object_ptr)
 {
@@ -1200,7 +1185,6 @@ DECL_HANDLER(get_kernel_object_handle)
 {
     struct device_manager *manager;
     struct kernel_object *ref;
-=======
 /* enumerate all active drivers */
 DECL_HANDLER(enum_drivers)
 {
@@ -1356,25 +1340,18 @@ void dispatch_load_image_event( struct process *process, mod_handle_t base )
 DECL_HANDLER( reg_device_event_handler )
 {
     struct device_manager *manager;
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 
     if (!(manager = (struct device_manager *)get_handle_obj( current->process, req->manager,
                                                              0, &device_manager_ops )))
         return;
-<<<<<<< HEAD
 
     if ((ref = kernel_object_from_ptr( manager, req->user_ptr )))
         reply->handle = alloc_handle( current->process, ref->object, req->access, 0 );
     else
         set_error( STATUS_INVALID_HANDLE );
-
-    release_object( manager );
-}
-=======
     
     manager->event_handler = req->event_handler;
     manager->handler_thread = current;
 
     release_object(manager);
 }
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
