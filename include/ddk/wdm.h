@@ -1803,11 +1803,8 @@ NTSTATUS  WINAPI PsCreateSystemThread(PHANDLE,ULONG,POBJECT_ATTRIBUTES,HANDLE,PC
 #define          PsGetCurrentThread() ((PETHREAD)KeGetCurrentThread())
 HANDLE    WINAPI PsGetCurrentProcessId(void);
 HANDLE    WINAPI PsGetCurrentThreadId(void);
-<<<<<<< HEAD
 HANDLE    WINAPI PsGetProcessInheritedFromUniqueProcessId(PEPROCESS);
-=======
 PPEB      WINAPI PsGetProcessPeb(PEPROCESS Process);
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 BOOLEAN   WINAPI PsGetVersion(ULONG*,ULONG*,ULONG*,UNICODE_STRING*);
 NTSTATUS  WINAPI PsTerminateSystemThread(NTSTATUS);
 
