@@ -1756,80 +1756,6 @@ NTSTATUS query_unix_device( ULONGLONG unix_dev, enum device_type *type,
     return status;
 }
 
-<<<<<<< HEAD
-static void query_property( struct disk_device *device, IRP *irp )
-{
-    IO_STACK_LOCATION *irpsp = IoGetCurrentIrpStackLocation( irp );
-    STORAGE_PROPERTY_QUERY *query = irp->AssociatedIrp.SystemBuffer;
-
-    if (!irp->AssociatedIrp.SystemBuffer
-        || irpsp->Parameters.DeviceIoControl.InputBufferLength < sizeof(STORAGE_PROPERTY_QUERY))
-    {
-        irp->IoStatus.u.Status = STATUS_INVALID_PARAMETER;
-        return;
-    }
-
-    /* Try to persuade application not to check property */
-    if (query->QueryType == PropertyExistsQuery)
-    {
-        irp->IoStatus.u.Status = STATUS_NOT_SUPPORTED;
-        return;
-    }
-
-    switch (query->PropertyId)
-    {
-    case StorageDeviceProperty:
-    {
-        STORAGE_DEVICE_DESCRIPTOR *descriptor;
-        DWORD len = sizeof(*descriptor);
-
-        if (device->serial) len += strlen( device->serial ) + 1;
-
-        if (irpsp->Parameters.DeviceIoControl.OutputBufferLength < sizeof(STORAGE_DESCRIPTOR_HEADER))
-            irp->IoStatus.u.Status = STATUS_INVALID_PARAMETER;
-        else if (irpsp->Parameters.DeviceIoControl.OutputBufferLength < len)
-        {
-            descriptor = irp->AssociatedIrp.SystemBuffer;
-            descriptor->Version = sizeof(STORAGE_DEVICE_DESCRIPTOR);
-            descriptor->Size = len;
-            irp->IoStatus.Information = sizeof(STORAGE_DESCRIPTOR_HEADER);
-            irp->IoStatus.u.Status = STATUS_SUCCESS;
-        }
-        else
-        {
-            FIXME( "Faking StorageDeviceProperty data\n" );
-
-            memset( irp->AssociatedIrp.SystemBuffer, 0, irpsp->Parameters.DeviceIoControl.OutputBufferLength );
-            descriptor = irp->AssociatedIrp.SystemBuffer;
-            descriptor->Version = sizeof(STORAGE_DEVICE_DESCRIPTOR);
-            descriptor->Size = len;
-            descriptor->DeviceType = FILE_DEVICE_DISK;
-            descriptor->DeviceTypeModifier = 0;
-            descriptor->RemovableMedia = FALSE;
-            descriptor->CommandQueueing = FALSE;
-            descriptor->VendorIdOffset = 0;
-            descriptor->ProductIdOffset = 0;
-            descriptor->ProductRevisionOffset = 0;
-            descriptor->BusType = BusTypeScsi;
-            descriptor->RawPropertiesLength = 0;
-            if (!device->serial) descriptor->SerialNumberOffset = 0;
-            else
-            {
-                descriptor->SerialNumberOffset = sizeof(*descriptor);
-                strcpy( (char *)descriptor + descriptor->SerialNumberOffset, device->serial );
-            }
-            irp->IoStatus.Information = len;
-            irp->IoStatus.u.Status = STATUS_SUCCESS;
-        }
-
-        break;
-    }
-    default:
-        FIXME( "Unsupported property %#x\n", query->PropertyId );
-        irp->IoStatus.u.Status = STATUS_NOT_SUPPORTED;
-        break;
-    }
-=======
 /* loosely based of reactOS drivers */
 static NTSTATUS query_device_property( void *buff, SIZE_T insize,
                                        SIZE_T outsize, IO_STATUS_BLOCK *iosb,
@@ -1989,7 +1915,6 @@ static NTSTATUS query_indentify_data( void *buff, SIZE_T insize,
     iosb->Information = 0;
     return  STATUS_NOT_SUPPORTED;
     
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 }
 
 /* handler for ioctls on the harddisk device */
@@ -2065,10 +1990,6 @@ static NTSTATUS WINAPI harddisk_ioctl( DEVICE_OBJECT *device, IRP *irp )
         break;
     }
     case IOCTL_STORAGE_QUERY_PROPERTY:
-<<<<<<< HEAD
-        query_property( dev, irp );
-        break;
-=======
     {
 
         irp->IoStatus.u.Status = query_device_property( irp->AssociatedIrp.SystemBuffer,
@@ -2088,7 +2009,6 @@ static NTSTATUS WINAPI harddisk_ioctl( DEVICE_OBJECT *device, IRP *irp )
                                                             dev);
         break;
     }
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
     default:
     {
         ULONG code = irpsp->Parameters.DeviceIoControl.IoControlCode;
