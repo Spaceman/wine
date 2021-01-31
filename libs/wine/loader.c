@@ -948,8 +948,6 @@ static void apple_main_thread( void (*init_func)(void) )
 #endif
 
 
-<<<<<<< HEAD
-=======
 #ifdef __ANDROID__
 
 #ifndef WINE_JAVA_CLASS
@@ -1111,7 +1109,6 @@ static inline void reserve_area( void *addr, void *end )
 }
 
 
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 /***********************************************************************
  *           wine_init
  *
