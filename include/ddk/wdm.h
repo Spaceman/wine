@@ -159,7 +159,6 @@ typedef enum _KWAIT_REASON
     MaximumWaitReason,
 } KWAIT_REASON;
 
-<<<<<<< HEAD
 typedef struct _KWAIT_BLOCK {
     LIST_ENTRY WaitListEntry;
     struct _KTHREAD *RESTRICTED_POINTER Thread;
@@ -221,10 +220,9 @@ typedef struct _ERESOURCE
     KSPIN_LOCK SpinLock;
 } ERESOURCE, *PERESOURCE;
 
-=======
+
 typedef struct _ALLOCATE_FUNCTION *PALLOCATE_FUNCTION;
 typedef struct _KAPC_STATE *PKAPC_STATE, *PRKAPC_STATE;
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 typedef struct _IO_TIMER *PIO_TIMER;
 typedef struct _IO_TIMER_ROUTINE *PIO_TIMER_ROUTINE;
 typedef struct _ETHREAD *PETHREAD;
