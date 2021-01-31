@@ -474,7 +474,7 @@ DECL_HANDLER(create_directory)
 
     if (!objattr) return;
 
-    if ((dir = create_directory( root, &name, objattr->attributes, DIR_HASH_SIZE, sd )))
+    if ((dir = create_directory( root, &name, objattr->attributes, HASH_SIZE, sd )))
     {
         reply->handle = alloc_handle( current->process, dir, req->access, objattr->attributes );
         release_object( dir );
