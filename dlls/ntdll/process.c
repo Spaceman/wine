@@ -36,7 +36,6 @@
 #include "winternl.h"
 #include "ntdll_misc.h"
 #include "wine/exception.h"
-#include "wine/library.h"
 #include "wine/server.h"
 #include "wine/unicode.h"
 
