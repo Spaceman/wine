@@ -1312,8 +1312,6 @@ done:
     return ret;
 }
 
-<<<<<<< HEAD
-=======
 
 /***********************************************************************
  *              GetMonitorInfo  (MACDRV.@)
@@ -1368,7 +1366,6 @@ BOOL CDECL macdrv_GetMonitorInfo(HMONITOR monitor, LPMONITORINFO info)
 }
 
 
->>>>>>> 4361249afa2e7f5165eb29dfe609340e859aaaa9
 /***********************************************************************
  *              SetDeviceGammaRamp (MACDRV.@)
  */
